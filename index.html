@@ -974,9 +974,22 @@ document.addEventListener('DOMContentLoaded', () => {
     executeRenderCycles();
   });
 
-  // Pull database data array immediately on wrapper thread initialization[cite: 1]
+  function bootTrackerEngine() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const modeParam = urlParams.get('view');
+    
+    if (modeParam === 'day') {
+      currentLayoutView = 'day';
+      document.getElementById('viewLayoutSwitch').value = 'day';
+    } else {
+      currentLayoutView = 'week';
+      document.getElementById('viewLayoutSwitch').value = 'week';
+    }
+   runBackgroundAlarmDaemon();
   fetchCloudState();
-  runBackgroundAlarmDaemon(); 
+}
+
+  bootTrackerEngine();
 });
 </script>
 </body>
