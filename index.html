@@ -206,6 +206,7 @@
 
     .s-circle.done    { background: var(--pray); box-shadow: 0 0 8px var(--pray); }
     .s-circle.partial { background: var(--cp); box-shadow: 0 0 8px var(--cp); }
+    .s-circle.skipped { background: var(--meet); box-shadow: none; opacity: 0.4; }
     .s-circle.is-today {
       background: transparent;
       border: 2px solid var(--accent-gold);
@@ -300,6 +301,10 @@
       position: relative;
     }
 
+    .day-col.skipped-state {
+      opacity: 0.4;
+    }
+
     .day-col:last-child { border-right: none; }
     .day-col.is-today { background: rgba(109, 53, 118, 0.12); }
     
@@ -348,10 +353,34 @@
       text-transform: uppercase;
     }
 
+    .day-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .day-completion-badge {
       font-size: 11px;
       font-weight: 600;
       color: var(--accent-gold);
+    }
+
+    .skip-toggle-link {
+      font-size: 9px;
+      color: var(--muted);
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+
+    .skip-toggle-link:hover {
+      color: var(--cp);
+    }
+
+    .day-col.skipped-state .skip-toggle-link {
+      color: var(--pray);
     }
 
     .day-col.is-today .day-name { color: #fff; }
@@ -363,6 +392,17 @@
       flex-direction: column;
       gap: 8px;
       flex: 1;
+    }
+
+    .skipped-msg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
     }
 
     .task-item {
@@ -381,6 +421,12 @@
     }
     
     .task-item.done { opacity: 0.25; }
+
+    .task-item.carry-forward-derived {
+      border-style: dashed;
+      border-color: rgba(255, 107, 53, 0.4);
+      background: rgba(255, 107, 53, 0.02);
+    }
 
     .task-row {
       display: flex;
@@ -448,6 +494,12 @@
       color: var(--accent-lavender);
     }
 
+    .task-badges {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
     .one-time-tag {
       display: inline-block;
       font-size: 8px;
@@ -459,7 +511,17 @@
       border-radius: 3px;
     }
 
-    /* Collapsible structural notes styles wrapper constraints */
+    .carry-tag {
+      display: inline-block;
+      font-size: 8px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--cp);
+      background: rgba(255, 107, 53, 0.12);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
     .task-notes-drawer {
       max-height: 0;
       overflow: hidden;
@@ -585,19 +647,10 @@
 
     .l-dot { width: 8px; height: 8px; border-radius: 50%; }
 
-    /* Single Day UI View Overrides for Borderless Clean Output Widget Modality */
-    body:has(#viewLayoutSwitch[value="day"]) .header {
-      padding: 16px 20px;
-    }
-    body:has(#viewLayoutSwitch[value="day"]) .brand-title {
-      font-size: 32px;
-    }
-    body:has(#viewLayoutSwitch[value="day"]) .metrics-bar {
-      padding: 10px 20px;
-    }
-    body:has(#viewLayoutSwitch[value="day"]) .week-grid.single-mode {
-      margin: 15px auto;
-    }
+    body:has(#viewLayoutSwitch[value="day"]) .header { padding: 16px 20px; }
+    body:has(#viewLayoutSwitch[value="day"]) .brand-title { font-size: 32px; }
+    body:has(#viewLayoutSwitch[value="day"]) .metrics-bar { padding: 10px 20px; }
+    body:has(#viewLayoutSwitch[value="day"]) .week-grid.single-mode { margin: 15px auto; }
   </style>
 </head>
 <body>
@@ -849,6 +902,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Phase 2: Compute temporary cascading carry-forward projection arrays
+  function getComputedDayTasks(day, scheduleContext) {
+    if (state[`skip_day_${day.key}`]) return [];
+
+    const currentIdx = baseWeekConfig.findIndex(d => d.key === day.key);
+    let dayTasksCombined = [...day.tasks];
+
+    // Scan prior days inside this week configuration slice
+    for (let i = 0; i < currentIdx; i++) {
+      const priorDay = scheduleContext[i];
+      if (state[`skip_day_${priorDay.key}`]) continue;
+
+      priorDay.tasks.forEach(t => {
+        if (t.taskType === 'production' && !t.isCounter) {
+          if (!state[t.id]) {
+            // Project into layout copy with Carry metadata tag appended
+            if (!dayTasksCombined.some(existing => existing.id === t.id)) {
+              dayTasksCombined.push({ ...t, isCarriedForward: true });
+            }
+          }
+        }
+      });
+    }
+    return dayTasksCombined;
+  }
+
   function playAlertChime() {
     try {
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -882,8 +961,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function runBackgroundAlarmDaemon() {
     setInterval(() => {
       const now = new Date();
-      
-      // Update Live UI Clock Node elements directly
       const hrs = String(now.getHours()).padStart(2, '0');
       const mins = String(now.getMinutes()).padStart(2, '0');
       const secs = String(now.getSeconds()).padStart(2, '0');
@@ -891,10 +968,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const currentDayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
       const currentTimeStr = `${hrs}:${mins}`;
-      const targetDay = buildSchedule().find(d => d.date === currentDayStr);
-      if (!targetDay) return;
+      const fullSchedule = buildSchedule();
+      const targetDay = fullSchedule.find(d => d.date === currentDayStr);
+      if (!targetDay || state[`skip_day_${targetDay.key}`]) return;
 
-      targetDay.tasks.forEach(task => {
+      const contextualTasks = getComputedDayTasks(targetDay, fullSchedule);
+      contextualTasks.forEach(task => {
         if (task.isCounter || state[task.id]) return;
         const taskTargetTime = parseTimeString(task.time);
         if (!taskTargetTime) return;
@@ -912,27 +991,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1000);
   }
 
-  function getCalculatedProgressMetrics(day) {
-    let total = day.tasks.length, done = 0;
-    if (total === 0) return { total: 0, done: 0, percentage: 0 };
-    day.tasks.forEach(t => {
+  function getCalculatedProgressMetrics(day, fullSchedule) {
+    if (state[`skip_day_${day.key}`]) return { total: 0, done: 0, percentage: 0, isSkipped: true };
+    const contextualTasks = getComputedDayTasks(day, fullSchedule);
+    let total = contextualTasks.length, done = 0;
+    if (total === 0) return { total: 0, done: 0, percentage: 0, isSkipped: false };
+    contextualTasks.forEach(t => {
       if (t.isCounter) { if ((state[t.id] || 0) > 0) done++; }
       else { if (state[t.id]) done++; }
     });
-    return { total, done, percentage: Math.round((done / total) * 100) };
+    return { total, done, percentage: Math.round((done / total) * 100), isSkipped: false };
   }
 
-  function dayCompletion(day) {
-    const metrics = getCalculatedProgressMetrics(day);
+  function dayCompletion(day, fullSchedule) {
+    const metrics = getCalculatedProgressMetrics(day, fullSchedule);
+    if (metrics.isSkipped) return 'skipped';
     if (metrics.total === 0) return 'empty';
     return metrics.done === 0 ? 'empty' : (metrics.done === metrics.total ? 'done' : 'partial');
   }
 
   function calculateGlobalVelocity() {
-    const schedule = buildSchedule();
+    const fullSchedule = buildSchedule();
     let totalUnits = 0, completedUnits = 0;
-    schedule.forEach(day => {
-      day.tasks.forEach(t => {
+    fullSchedule.forEach(day => {
+      if (state[`skip_day_${day.key}`]) return; // Omit metrics loops
+      const contextualTasks = getComputedDayTasks(day, fullSchedule);
+      contextualTasks.forEach(t => {
         totalUnits++;
         if (t.isCounter) { if ((state[t.id] || 0) > 0) completedUnits++; }
         else { if (state[t.id]) completedUnits++; }
@@ -944,7 +1028,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderStreak() {
     const el = document.getElementById('streakDots'); el.innerHTML = '';
     const today = getToday();
-    buildSchedule().forEach(day => {
+    const fullSchedule = buildSchedule();
+    fullSchedule.forEach(day => {
       const dot = document.createElement('div'); dot.className = 's-dot';
       const circle = document.createElement('div'); circle.className = 's-circle';
       const label = document.createElement('div'); label.className = 's-day-label';
@@ -952,9 +1037,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (day.date === today) {
         circle.classList.add('is-today');
       } else {
-        const status = dayCompletion(day);
+        const status = dayCompletion(day, fullSchedule);
         if (status === 'done') circle.classList.add('done');
         if (status === 'partial') circle.classList.add('partial');
+        if (status === 'skipped') circle.classList.add('skipped');
       }
       dot.appendChild(circle); dot.appendChild(label); el.appendChild(dot);
     });
@@ -962,10 +1048,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateTodayCount() {
     const today = getToday();
-    const dayData = buildSchedule().find(d => d.date === today);
+    const fullSchedule = buildSchedule();
+    const dayData = fullSchedule.find(d => d.date === today);
     const el = document.getElementById('todayCount');
     if (!dayData) { el.textContent = '—'; return; }
-    const metrics = getCalculatedProgressMetrics(dayData);
+    if (state[`skip_day_${dayData.key}`]) { el.textContent = 'SKIP'; return; }
+    const metrics = getCalculatedProgressMetrics(dayData, fullSchedule);
     el.textContent = `${metrics.done}/${metrics.total}`;
   }
 
@@ -985,35 +1073,53 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderGrid() {
     const grid = document.getElementById('weekGrid'); grid.innerHTML = '';
     const today = getToday();
-    let schedule = buildSchedule();
+    const fullSchedule = buildSchedule();
+    let displaySchedule = [...fullSchedule];
 
     if (currentLayoutView === 'day') {
       grid.className = 'week-grid single-mode';
-      schedule = schedule.filter(d => d.key === activeDayTab);
+      displaySchedule = displaySchedule.filter(d => d.key === activeDayTab);
     } else {
       grid.className = 'week-grid';
     }
 
-    const fullWeek = buildSchedule();
-    if(fullWeek.length > 0) {
-      const firstDay = new Date(fullWeek[0].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
+    if(fullSchedule.length > 0) {
+      const firstDay = new Date(fullSchedule[0].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
       const lastDay = new Date(fullWeek[6].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
       document.getElementById('weekRangeDisplay').innerHTML = `${firstDay} – ${lastDay} &nbsp;·&nbsp; ENIGMA`;
     }
 
-    schedule.forEach(day => {
-      const col = document.createElement('div'); col.className = 'day-col' + (day.date === today ? ' is-today' : '');
-      const head = document.createElement('div'); head.className = 'day-head';
+    displaySchedule.forEach(day => {
+      const isSkipped = state[`skip_day_${day.key}`];
+      const col = document.createElement('div'); 
+      col.className = 'day-col' + (day.date === today ? ' is-today' : '') + (isSkipped ? ' skipped-state' : '');
       
+      const head = document.createElement('div'); head.className = 'day-head';
       const headMetaRow = document.createElement('div'); headMetaRow.className = 'day-head-meta';
       const nameEl = document.createElement('div'); nameEl.className = 'day-name'; nameEl.textContent = day.label;
       
-      const metrics = getCalculatedProgressMetrics(day);
+      const dayControls = document.createElement('div');
+      dayControls.className = 'day-controls';
+      
+      const metrics = getCalculatedProgressMetrics(day, fullSchedule);
       const completionEl = document.createElement('div'); 
       completionEl.className = 'day-completion-badge';
-      completionEl.textContent = metrics.total > 0 ? `${metrics.percentage}%` : '0%';
+      completionEl.textContent = isSkipped ? 'SKIPPED' : (metrics.total > 0 ? `${metrics.percentage}%` : '0%');
       
-      headMetaRow.appendChild(nameEl); headMetaRow.appendChild(completionEl);
+      const skipLink = document.createElement('a');
+      skipLink.className = 'skip-toggle-link';
+      skipLink.textContent = isSkipped ? '[Track]' : '[Skip]';
+      skipLink.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const skipKey = `skip_day_${day.key}`;
+        state[skipKey] = !state[skipKey];
+        syncToCloud(skipKey, state[skipKey]);
+        executeRenderCycles();
+      });
+      
+      dayControls.appendChild(completionEl);
+      dayControls.appendChild(skipLink);
+      headMetaRow.appendChild(nameEl); headMetaRow.appendChild(dayControls);
       
       const dateEl = document.createElement('div'); dateEl.className = 'day-date';
       dateEl.textContent = new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
@@ -1021,80 +1127,94 @@ document.addEventListener('DOMContentLoaded', () => {
       head.appendChild(headMetaRow); head.appendChild(dateEl); col.appendChild(head);
 
       const tasksEl = document.createElement('div'); tasksEl.className = 'day-tasks';
-      day.tasks.forEach(task => {
-        if (selectedBrandFilter !== 'all' && task.brand !== selectedBrandFilter) return;
+      
+      if (isSkipped) {
+        const skippedMsg = document.createElement('div');
+        skippedMsg.className = 'skipped-msg';
+        skippedMsg.textContent = 'Day Allocation Skipped';
+        tasksEl.appendChild(skippedMsg);
+      } else {
+        const contextualTasks = getComputedDayTasks(day, fullSchedule);
+        contextualTasks.forEach(task => {
+          if (selectedBrandFilter !== 'all' && task.brand !== selectedBrandFilter) return;
 
-        if (task.isCounter) {
-          const widget = document.createElement('div'); widget.className = 'counter-widget';
-          const cHead = document.createElement('div'); cHead.className = 'counter-head';
-          cHead.innerHTML = `Reupload <span>Admin</span>`;
-          const cTime = document.createElement('div'); cTime.className = 'counter-time'; cTime.textContent = task.time;
-          const btns = document.createElement('div'); btns.className = 'counter-btns';
-          const curr = state[task.id] !== undefined ? state[task.id] : 0;
-          [0,1,2].forEach(n => {
-            const btn = document.createElement('button'); btn.className = 'c-btn' + (curr === n ? ' active' : ''); btn.textContent = n;
-            btn.addEventListener('click', (e) => {
-              e.stopPropagation(); state[task.id] = n; 
-              syncToCloud(task.id, n); executeRenderCycles();
-            });
-            btns.appendChild(btn);
-          });
-          widget.appendChild(cHead); widget.appendChild(cTime); widget.appendChild(btns); tasksEl.appendChild(widget);
-        } else {
-          const item = document.createElement('div'); item.className = `task-item brand-${task.brand}${state[task.id] ? ' done' : ''}`;
-          const row = document.createElement('div'); row.className = 'task-row';
-          const pip = document.createElement('div'); pip.className = 'brand-pip';
-          const check = document.createElement('div'); check.className = 'task-check';
-          check.innerHTML = `<svg class="chk-svg" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-          const content = document.createElement('div'); content.className = 'task-content';
-          const text = document.createElement('div'); text.className = 'task-text'; text.textContent = task.text;
-          
-          const metaRow = document.createElement('div'); metaRow.className = 'task-meta-row';
-          const time = document.createElement('div'); time.className = 'task-time'; time.textContent = task.time;
-          metaRow.appendChild(time);
-          
-          if (task.oneTime) {
-            const badge = document.createElement('div'); badge.className = 'one-time-tag'; badge.textContent = 'One-time';
-            metaRow.appendChild(badge);
-          }
-          content.appendChild(text); content.appendChild(metaRow);
-          
-          // Collapsible Context Field Structural Integration
-          const drawer = document.createElement('div'); drawer.className = 'task-notes-drawer';
-          const notesInput = document.createElement('textarea');
-          notesInput.className = 'task-notes-field';
-          notesInput.placeholder = 'Add contextual logging notes...';
-          notesInput.value = taskNotes[task.id] || '';
-          
-          notesInput.addEventListener('click', (e) => e.stopPropagation());
-          notesInput.addEventListener('input', (e) => {
-            taskNotes[task.id] = e.target.value;
-            saveTaskNotes();
-          });
-          
-          drawer.appendChild(notesInput);
-          content.appendChild(drawer);
-          
-          row.appendChild(pip); row.appendChild(check); row.appendChild(content); item.appendChild(row);
-          
-          item.addEventListener('click', (e) => {
-            if (e.target === notesInput) return;
-            
-            // Toggle collapsed context field drawer visibility logic state variables
-            const completeToggleClick = (e.target.closest('.task-check') || state[task.id]);
-            if (completeToggleClick) {
-              state[task.id] = !state[task.id];
-              syncToCloud(task.id, state[task.id]); executeRenderCycles();
-            } else {
-              document.querySelectorAll('.task-notes-drawer').forEach(d => {
-                if(d !== drawer) d.classList.remove('open');
+          if (task.isCounter) {
+            const widget = document.createElement('div'); widget.className = 'counter-widget';
+            const cHead = document.createElement('div'); cHead.className = 'counter-head';
+            cHead.innerHTML = `Reupload <span>Admin</span>`;
+            const cTime = document.createElement('div'); cTime.className = 'counter-time'; cTime.textContent = task.time;
+            const btns = document.createElement('div'); btns.className = 'counter-btns';
+            const curr = state[task.id] !== undefined ? state[task.id] : 0;
+            [0,1,2].forEach(n => {
+              const btn = document.createElement('button'); btn.className = 'c-btn' + (curr === n ? ' active' : ''); btn.textContent = n;
+              btn.addEventListener('click', (e) => {
+                e.stopPropagation(); state[task.id] = n; 
+                syncToCloud(task.id, n); executeRenderCycles();
               });
-              drawer.classList.toggle('open');
+              btns.appendChild(btn);
+            });
+            widget.appendChild(cHead); widget.appendChild(cTime); widget.appendChild(btns); tasksEl.appendChild(widget);
+          } else {
+            const item = document.createElement('div'); 
+            item.className = `task-item brand-${task.brand}${state[task.id] ? ' done' : ''}${task.isCarriedForward ? ' carry-forward-derived' : ''}`;
+            const row = document.createElement('div'); row.className = 'task-row';
+            const pip = document.createElement('div'); pip.className = 'brand-pip';
+            const check = document.createElement('div'); check.className = 'task-check';
+            check.innerHTML = `<svg class="chk-svg" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            const content = document.createElement('div'); content.className = 'task-content';
+            const text = document.createElement('div'); text.className = 'task-text'; text.textContent = task.text;
+            
+            const metaRow = document.createElement('div'); metaRow.className = 'task-meta-row';
+            const time = document.createElement('div'); time.className = 'task-time'; time.textContent = task.time;
+            metaRow.appendChild(time);
+            
+            const badgesContainer = document.createElement('div');
+            badgesContainer.className = 'task-badges';
+            
+            if (task.isCarriedForward) {
+              const carryBadge = document.createElement('div'); carryBadge.className = 'carry-tag'; carryBadge.textContent = 'Carry';
+              badgesContainer.appendChild(carryBadge);
             }
-          });
-          tasksEl.appendChild(item);
-        }
-      });
+            if (task.oneTime) {
+              const badge = document.createElement('div'); badge.className = 'one-time-tag'; badge.textContent = 'One-time';
+              badgesContainer.appendChild(badge);
+            }
+            metaRow.appendChild(badgesContainer);
+            content.appendChild(text); content.appendChild(metaRow);
+            
+            const drawer = document.createElement('div'); drawer.className = 'task-notes-drawer';
+            const notesInput = document.createElement('textarea');
+            notesInput.className = 'task-notes-field';
+            notesInput.placeholder = 'Add contextual logging notes...';
+            notesInput.value = taskNotes[task.id] || '';
+            
+            notesInput.addEventListener('click', (e) => e.stopPropagation());
+            notesInput.addEventListener('input', (e) => {
+              taskNotes[task.id] = e.target.value;
+              saveTaskNotes();
+            });
+            
+            drawer.appendChild(notesInput);
+            content.appendChild(drawer);
+            row.appendChild(pip); row.appendChild(check); row.appendChild(content); item.appendChild(row);
+            
+            item.addEventListener('click', (e) => {
+              if (e.target === notesInput) return;
+              const completeToggleClick = (e.target.closest('.task-check') || state[task.id]);
+              if (completeToggleClick) {
+                state[task.id] = !state[task.id];
+                syncToCloud(task.id, state[task.id]); executeRenderCycles();
+              } else {
+                document.querySelectorAll('.task-notes-drawer').forEach(d => {
+                  if(d !== drawer) d.classList.remove('open');
+                });
+                drawer.classList.toggle('open');
+              }
+            });
+            tasksEl.appendChild(item);
+          }
+        });
+      }
       col.appendChild(tasksEl); grid.appendChild(col);
     });
   }
