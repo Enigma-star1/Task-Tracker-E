@@ -112,6 +112,33 @@
       border-color: var(--accent-lavender);
     }
 
+    .meta-time-block {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .clock-display {
+      text-align: right;
+    }
+
+    .clock-time {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 44px;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--text);
+      letter-spacing: 1px;
+    }
+
+    .clock-label {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
     .today-block {
       text-align: right;
     }
@@ -290,11 +317,17 @@
     }
 
     .day-head {
-      padding: 20px 16px 16px;
+      padding: 20px 16px 14px;
       border-bottom: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       gap: 2px;
+    }
+
+    .day-head-meta {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
     }
 
     .day-name {
@@ -313,6 +346,12 @@
       letter-spacing: 1px;
       color: var(--accent-lavender);
       text-transform: uppercase;
+    }
+
+    .day-completion-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent-gold);
     }
 
     .day-col.is-today .day-name { color: #fff; }
@@ -397,10 +436,16 @@
       color: var(--muted);
     }
 
+    .task-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+
     .task-time {
       font-size: 10px;
       color: var(--accent-lavender);
-      margin-top: 4px;
     }
 
     .one-time-tag {
@@ -412,7 +457,35 @@
       background: rgba(16, 185, 129, 0.12);
       padding: 2px 6px;
       border-radius: 3px;
-      margin-top: 6px;
+    }
+
+    /* Collapsible structural notes styles wrapper constraints */
+    .task-notes-drawer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .task-notes-drawer.open {
+      max-height: 100px;
+    }
+
+    .task-notes-field {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent-lavender);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 6px 8px;
+      margin-top: 8px;
+      outline: none;
+      resize: none;
+    }
+
+    .task-notes-field:focus {
+      border-color: var(--accent-purple);
     }
 
     .counter-widget {
@@ -511,6 +584,20 @@
     }
 
     .l-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* Single Day UI View Overrides for Borderless Clean Output Widget Modality */
+    body:has(#viewLayoutSwitch[value="day"]) .header {
+      padding: 16px 20px;
+    }
+    body:has(#viewLayoutSwitch[value="day"]) .brand-title {
+      font-size: 32px;
+    }
+    body:has(#viewLayoutSwitch[value="day"]) .metrics-bar {
+      padding: 10px 20px;
+    }
+    body:has(#viewLayoutSwitch[value="day"]) .week-grid.single-mode {
+      margin: 15px auto;
+    }
   </style>
 </head>
 <body>
@@ -537,9 +624,15 @@
         <button class="action-btn" id="addTaskBtn">+ Task</button>
         <button class="action-btn" id="resetBtn">Reset</button>
       </div>
-      <div class="today-block">
-        <div class="today-count" id="todayCount">—</div>
-        <div class="today-count-label">Today Done</div>
+      <div class="meta-time-block">
+        <div class="clock-display">
+          <div class="clock-time" id="liveClockDisplay">00:00:00</div>
+          <div class="clock-label">Local Time</div>
+        </div>
+        <div class="today-block">
+          <div class="today-count" id="todayCount">—</div>
+          <div class="today-count-label">Today Done</div>
+        </div>
       </div>
     </div>
   </div>
@@ -580,6 +673,10 @@
         <option value="pray">Praying Scripture</option>
         <option value="meet">Meeting</option>
       </select>
+      <select id="modType">
+        <option value="production">Production Task (Carries Forward)</option>
+        <option value="time-anchored">Time-Anchored (Stays Behind)</option>
+      </select>
       <input type="text" id="modText" placeholder="Task description">
       <input type="text" id="modTime" placeholder="Time string parsed (e.g. 4pm, 11am)">
       <div style="display:flex; gap:10px; margin-top:10px;">
@@ -591,7 +688,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  // Cloud database credentials explicitly hardcoded inside wrapper constraints[cite: 1]
   const SUPABASE_URL = "https://gbewpiujdqnqswdbrigt.supabase.co";
   const SUPABASE_KEY = "sb_publishable_wI8epgUrgKSI9CTg9ytHNA_dzrkqeko";
 
@@ -619,50 +715,51 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const BASE_SCHEDULE_TEMPLATES = {
     sat: [
-      { id: 'sat_pray',     brand: 'pray',   text: 'Upload 6 videos — YT + Instagram', time: '11am', oneTime: true },
-      { id: 'sat_studio',   brand: 'studio', text: '1 Photoshop design',                time: '1pm'  },
-      { id: 'sat_reupload', brand: 'cp',     text: 'Reupload courses — Admin Portal',   time: 'Anytime', isCounter: true },
+      { id: 'sat_pray',     brand: 'pray',   text: 'Upload 6 videos — YT + Instagram', time: '11am', oneTime: true, taskType: 'production' },
+      { id: 'sat_studio',   brand: 'studio', text: '1 Photoshop design',                time: '1pm', taskType: 'production'  },
+      { id: 'sat_reupload', brand: 'cp',     text: 'Reupload courses — Admin Portal',   time: 'Anytime', isCounter: true, taskType: 'production' },
     ],
     sun: [
-      { id: 'sun_blog',     brand: 'cp', text: 'Write Blog post',                   time: 'Night'  },
-      { id: 'sun_watermark',brand: 'cp', text: 'Create Watermarked Course video',   time: 'Night'  },
-      { id: 'sun_reupload', brand: 'cp', text: 'Reupload courses — Admin Portal',   time: 'Anytime', isCounter: true },
+      { id: 'sun_blog',      brand: 'cp', text: 'Write Blog post',                   time: 'Night', taskType: 'production'  },
+      { id: 'sun_watermark',brand: 'cp', text: 'Create Watermarked Course video',   time: 'Night', taskType: 'production'  },
+      { id: 'sun_reupload', brand: 'cp', text: 'Reupload courses — Admin Portal',   time: 'Anytime', isCounter: true, taskType: 'production' },
     ],
     mon: [
-      { id: 'mon_blog',     brand: 'cp',     text: 'Post Blog — Meta',               time: '9am'       },
-      { id: 'mon_yt',       brand: 'cp',     text: 'Post Course — YouTube',          time: '12pm'      },
-      { id: 'mon_wm',       brand: 'cp',     text: 'Post Watermarked video — Meta',  time: '12pm'      },
-      { id: 'mon_reupload', brand: 'cp',     text: 'Reupload courses — Admin Portal',time: 'Before 6pm', isCounter: true },
-      { id: 'mon_meet',     brand: 'meet',   text: 'CP Meeting',                     time: '6pm'       },
-      { id: 'mon_tratun',   brand: 'tratun', text: 'Start design prep',              time: '10:30pm'   },
+      { id: 'mon_blog',     brand: 'cp',     text: 'Post Blog — Meta',               time: '9am', taskType: 'time-anchored' },
+      { id: 'mon_yt',       brand: 'cp',     text: 'Post Course — YouTube',          time: '12pm', taskType: 'time-anchored' },
+      { id: 'mon_wm',       brand: 'cp',     text: 'Post Watermarked video — Meta',  time: '12pm', taskType: 'time-anchored' },
+      { id: 'mon_reupload', brand: 'cp',     text: 'Reupload courses — Admin Portal',time: 'Before 6pm', isCounter: true, taskType: 'production' },
+      { id: 'mon_meet',     brand: 'meet',   text: 'CP Meeting',                     time: '6pm', taskType: 'time-anchored' },
+      { id: 'mon_tratun',   brand: 'tratun', text: 'Start design prep',              time: '10:30pm', taskType: 'production' },
     ],
     tue: [
-      { id: 'tue_debbie',   brand: 'tratun', text: 'Design thoughts → Mrs. Debbie', time: 'Before 12pm' },
-      { id: 'tue_design',   brand: 'tratun', text: 'Finish design',                 time: 'Before 12pm' },
-      { id: 'tue_meet',     brand: 'tratun', text: 'Tratun Meeting',                time: '4pm'         },
-      { id: 'tue_video',    brand: 'cp',     text: 'Create Highlight / CP Ally video', time: '10pm'     },
-      { id: 'tue_reupload', brand: 'cp',     text: 'Reupload courses — Admin Portal',time: 'Anytime', isCounter: true },
+      { id: 'tue_debbie',   brand: 'tratun', text: 'Design thoughts → Mrs. Debbie', time: 'Before 12pm', taskType: 'production' },
+      { id: 'tue_design',   brand: 'tratun', text: 'Finish design',                 time: 'Before 12pm', taskType: 'production' },
+      { id: 'tue_meet',     brand: 'tratun', text: 'Tratun Meeting',                 time: '4pm', taskType: 'time-anchored' },
+      { id: 'tue_video',    brand: 'cp',     text: 'Create Highlight / CP Ally video', time: '10pm', taskType: 'production' },
+      { id: 'tue_reupload', brand: 'cp',     text: 'Reupload courses — Admin Portal',time: 'Anytime', isCounter: true, taskType: 'production' },
     ],
     wed: [
-      { id: 'wed_post',     brand: 'cp',   text: 'Post Highlight / CP Ally video', time: '9am'    },
-      { id: 'wed_create',   brand: 'cp',   text: 'Create Course video',            time: '12pm+'  },
-      { id: 'wed_reupload', brand: 'cp',   text: 'Reupload courses — Admin Portal',time: 'Anytime', isCounter: true },
-      { id: 'wed_meet',     brand: 'meet', text: 'Design Team Meeting',            time: '4pm'    },
+      { id: 'wed_post',     brand: 'cp',   text: 'Post Highlight / CP Ally video', time: '9am', taskType: 'time-anchored' },
+      { id: 'wed_create',   brand: 'cp',   text: 'Create Course video',            time: '12pm+', taskType: 'production' },
+      { id: 'wed_reupload', brand: 'cp',   text: 'Reupload courses — Admin Portal',time: 'Anytime', isCounter: true, taskType: 'production' },
+      { id: 'wed_meet',     brand: 'meet', text: 'Design Team Meeting',            time: '4pm', taskType: 'time-anchored' },
     ],
     thu: [
-      { id: 'thu_create',   brand: 'pray', text: 'Create 3 Pray.Scr videos',             time: 'Anytime' },
-      { id: 'thu_upload',   brand: 'pray', text: 'Upload 2 videos — YT + Instagram',     time: 'Night'   },
-      { id: 'thu_reupload', brand: 'cp',   text: 'Reupload courses — Admin Portal',      time: 'Anytime', isCounter: true },
+      { id: 'thu_create',   brand: 'pray', text: 'Create 3 Pray.Scr videos',             time: 'Anytime', taskType: 'production' },
+      { id: 'thu_upload',   brand: 'pray', text: 'Upload 2 videos — YT + Instagram',     time: 'Night', taskType: 'production' },
+      { id: 'thu_reupload', brand: 'cp',   text: 'Reupload courses — Admin Portal',      time: 'Anytime', isCounter: true, taskType: 'production' },
     ],
     fri: [
-      { id: 'fri_wm',       brand: 'cp',   text: 'Create + Post Watermarked Course — Meta', time: 'Before 12pm' },
-      { id: 'fri_reels',    brand: 'cp',   text: 'Create and Post Reels',                   time: 'Before 12pm' },
-      { id: 'fri_reupload', brand: 'cp',   text: 'Reupload courses — Admin Portal',         time: 'Anytime', isCounter: true },
-      { id: 'fri_meet',     brand: 'meet', text: 'CP Meeting',                              time: '6pm'         },
+      { id: 'fri_wm',       brand: 'cp',   text: 'Create + Post Watermarked Course — Meta', time: 'Before 12pm', taskType: 'production' },
+      { id: 'fri_reels',    brand: 'cp',   text: 'Create and Post Reels',                    time: 'Before 12pm', taskType: 'production' },
+      { id: 'fri_reupload', brand: 'cp',   text: 'Reupload courses — Admin Portal',          time: 'Anytime', isCounter: true, taskType: 'production' },
+      { id: 'fri_meet',     brand: 'meet', text: 'CP Meeting',                               time: '6pm', taskType: 'time-anchored' },
     ]
   };
 
   const CUSTOM_TASKS_KEY = 'enigma_custom_tasks_v6';
+  const TASK_NOTES_KEY = 'enigma_task_notes_v1';
 
   function getToday() {
     const d = new Date();
@@ -671,6 +768,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let state = {}; 
   let customTasks = (() => { try { return JSON.parse(localStorage.getItem(CUSTOM_TASKS_KEY)) || []; } catch { return []; } })();
+  let taskNotes = (() => { try { return JSON.parse(localStorage.getItem(TASK_NOTES_KEY)) || {}; } catch { return {}; } })();
   
   let selectedBrandFilter = 'all';
   let currentLayoutView = 'week'; 
@@ -682,8 +780,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (foundTodayObj) activeDayTab = foundTodayObj.key;
 
   function saveCustomTasks(t) { localStorage.setItem(CUSTOM_TASKS_KEY, JSON.stringify(t)); }
+  function saveTaskNotes() { localStorage.setItem(TASK_NOTES_KEY, JSON.stringify(taskNotes)); }
 
-  // Restructured REST pipeline architecture targeting live instances[cite: 1]
   async function fetchCloudState() {
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?select=*`, {
@@ -784,8 +882,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function runBackgroundAlarmDaemon() {
     setInterval(() => {
       const now = new Date();
+      
+      // Update Live UI Clock Node elements directly
+      const hrs = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const secs = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('liveClockDisplay').textContent = `${hrs}:${mins}:${secs}`;
+
       const currentDayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      const currentTimeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      const currentTimeStr = `${hrs}:${mins}`;
       const targetDay = buildSchedule().find(d => d.date === currentDayStr);
       if (!targetDay) return;
 
@@ -807,14 +912,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1000);
   }
 
-  function dayCompletion(day) {
+  function getCalculatedProgressMetrics(day) {
     let total = day.tasks.length, done = 0;
-    if(total === 0) return 'empty';
+    if (total === 0) return { total: 0, done: 0, percentage: 0 };
     day.tasks.forEach(t => {
       if (t.isCounter) { if ((state[t.id] || 0) > 0) done++; }
       else { if (state[t.id]) done++; }
     });
-    return done === 0 ? 'empty' : (done === total ? 'done' : 'partial');
+    return { total, done, percentage: Math.round((done / total) * 100) };
+  }
+
+  function dayCompletion(day) {
+    const metrics = getCalculatedProgressMetrics(day);
+    if (metrics.total === 0) return 'empty';
+    return metrics.done === 0 ? 'empty' : (metrics.done === metrics.total ? 'done' : 'partial');
   }
 
   function calculateGlobalVelocity() {
@@ -854,12 +965,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const dayData = buildSchedule().find(d => d.date === today);
     const el = document.getElementById('todayCount');
     if (!dayData) { el.textContent = '—'; return; }
-    let total = dayData.tasks.length, done = 0;
-    dayData.tasks.forEach(t => {
-      if (t.isCounter) { if ((state[t.id] || 0) > 0) done++; }
-      else { if (state[t.id]) done++; }
-    });
-    el.textContent = `${done}/${total}`;
+    const metrics = getCalculatedProgressMetrics(dayData);
+    el.textContent = `${metrics.done}/${metrics.total}`;
   }
 
   function renderTabsRow() {
@@ -897,10 +1004,21 @@ document.addEventListener('DOMContentLoaded', () => {
     schedule.forEach(day => {
       const col = document.createElement('div'); col.className = 'day-col' + (day.date === today ? ' is-today' : '');
       const head = document.createElement('div'); head.className = 'day-head';
+      
+      const headMetaRow = document.createElement('div'); headMetaRow.className = 'day-head-meta';
       const nameEl = document.createElement('div'); nameEl.className = 'day-name'; nameEl.textContent = day.label;
+      
+      const metrics = getCalculatedProgressMetrics(day);
+      const completionEl = document.createElement('div'); 
+      completionEl.className = 'day-completion-badge';
+      completionEl.textContent = metrics.total > 0 ? `${metrics.percentage}%` : '0%';
+      
+      headMetaRow.appendChild(nameEl); headMetaRow.appendChild(completionEl);
+      
       const dateEl = document.createElement('div'); dateEl.className = 'day-date';
       dateEl.textContent = new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
-      head.appendChild(nameEl); head.appendChild(dateEl); col.appendChild(head);
+      
+      head.appendChild(headMetaRow); head.appendChild(dateEl); col.appendChild(head);
 
       const tasksEl = document.createElement('div'); tasksEl.className = 'day-tasks';
       day.tasks.forEach(task => {
@@ -930,16 +1048,49 @@ document.addEventListener('DOMContentLoaded', () => {
           check.innerHTML = `<svg class="chk-svg" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
           const content = document.createElement('div'); content.className = 'task-content';
           const text = document.createElement('div'); text.className = 'task-text'; text.textContent = task.text;
+          
+          const metaRow = document.createElement('div'); metaRow.className = 'task-meta-row';
           const time = document.createElement('div'); time.className = 'task-time'; time.textContent = task.time;
-          content.appendChild(text); content.appendChild(time);
+          metaRow.appendChild(time);
+          
           if (task.oneTime) {
             const badge = document.createElement('div'); badge.className = 'one-time-tag'; badge.textContent = 'One-time';
-            content.appendChild(badge);
+            metaRow.appendChild(badge);
           }
+          content.appendChild(text); content.appendChild(metaRow);
+          
+          // Collapsible Context Field Structural Integration
+          const drawer = document.createElement('div'); drawer.className = 'task-notes-drawer';
+          const notesInput = document.createElement('textarea');
+          notesInput.className = 'task-notes-field';
+          notesInput.placeholder = 'Add contextual logging notes...';
+          notesInput.value = taskNotes[task.id] || '';
+          
+          notesInput.addEventListener('click', (e) => e.stopPropagation());
+          notesInput.addEventListener('input', (e) => {
+            taskNotes[task.id] = e.target.value;
+            saveTaskNotes();
+          });
+          
+          drawer.appendChild(notesInput);
+          content.appendChild(drawer);
+          
           row.appendChild(pip); row.appendChild(check); row.appendChild(content); item.appendChild(row);
-          item.addEventListener('click', () => {
-            state[task.id] = !state[task.id];
-            syncToCloud(task.id, state[task.id]); executeRenderCycles();
+          
+          item.addEventListener('click', (e) => {
+            if (e.target === notesInput) return;
+            
+            // Toggle collapsed context field drawer visibility logic state variables
+            const completeToggleClick = (e.target.closest('.task-check') || state[task.id]);
+            if (completeToggleClick) {
+              state[task.id] = !state[task.id];
+              syncToCloud(task.id, state[task.id]); executeRenderCycles();
+            } else {
+              document.querySelectorAll('.task-notes-drawer').forEach(d => {
+                if(d !== drawer) d.classList.remove('open');
+              });
+              drawer.classList.toggle('open');
+            }
           });
           tasksEl.appendChild(item);
         }
@@ -954,7 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('brandFilter').addEventListener('change', (e) => { selectedBrandFilter = e.target.value; renderGrid(); });
   document.getElementById('resetBtn').addEventListener('click', () => {
     if (confirm('Reset weekly tracking operational vectors?')) {
-      state = {}; customTasks = []; saveCustomTasks(customTasks);
+      state = {}; customTasks = []; taskNotes = {}; saveCustomTasks(customTasks); saveTaskNotes();
       clearCloudState(); executeRenderCycles();
     }
   });
@@ -968,7 +1119,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modCancel').addEventListener('click', () => modal.style.display = 'none');
   document.getElementById('modSave').addEventListener('click', () => {
     const txt = document.getElementById('modText').value.trim(); if(!txt) return alert('Task text missing.');
-    customTasks.push({ id: 'custom_' + Date.now(), dayKey: document.getElementById('modDay').value, brand: document.getElementById('modBrand').value, text: txt, time: document.getElementById('modTime').value.trim() || 'Anytime', oneTime: true });
+    customTasks.push({ 
+      id: 'custom_' + Date.now(), 
+      dayKey: document.getElementById('modDay').value, 
+      brand: document.getElementById('modBrand').value, 
+      text: txt, 
+      time: document.getElementById('modTime').value.trim() || 'Anytime', 
+      oneTime: true,
+      taskType: document.getElementById('modType').value
+    });
     saveCustomTasks(customTasks); modal.style.display = 'none';
     document.getElementById('modText').value = ''; document.getElementById('modTime').value = '';
     executeRenderCycles();
@@ -985,9 +1144,9 @@ document.addEventListener('DOMContentLoaded', () => {
       currentLayoutView = 'week';
       document.getElementById('viewLayoutSwitch').value = 'week';
     }
-   runBackgroundAlarmDaemon();
-  fetchCloudState();
-}
+    runBackgroundAlarmDaemon();
+    fetchCloudState();
+  }
 
   bootTrackerEngine();
 });
