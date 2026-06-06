@@ -717,6 +717,12 @@
       font-family: inherit;
     }
 
+    /* Target overlay fix rule integration */
+    .modal-content select option {
+      background: #14101A !important;
+      color: #fff !important;
+    }
+
     .footer-legend {
       padding: 16px 32px;
       border-top: 1px solid var(--border);
@@ -1275,8 +1281,7 @@ document.addEventListener('DOMContentLoaded', () => {
     summaryPane.style.display = 'none';
     grid.innerHTML = '';
     
-    const today = getToday();
-    const fullSchedule = buildSchedule();
+    const today = getToday(); FullSchedule = buildSchedule();
     let displaySchedule = [...fullSchedule];
 
     if (currentLayoutView === 'day') {
