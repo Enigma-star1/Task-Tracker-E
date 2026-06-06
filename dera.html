@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dera — Premium Output Tracker</title>
+  <title>DERA — Premium Output Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
@@ -752,7 +752,7 @@
 
   <div class="header">
     <div>
-      <div class="brand-title">KOKOMA TRACKER</div>
+      <div class="brand-title">DERA TRACKER</div>
       <div class="brand-sub" id="weekRangeDisplay">OUTPUT CORE</div>
     </div>
     <div class="header-right">
@@ -890,9 +890,9 @@ document.addEventListener('DOMContentLoaded', () => {
     fri: []
   };
 
-  const CUSTOM_TASKS_KEY = 'kokoma_custom_tasks_v6';
-  const TASK_NOTES_KEY = 'kokoma_task_notes_v1';
-  const MEETING_OFFSET_KEY = 'kokoma_meeting_offset_v1';
+  const CUSTOM_TASKS_KEY = 'dera_custom_tasks_v6';
+  const TASK_NOTES_KEY = 'dera_task_notes_v1';
+  const MEETING_OFFSET_KEY = 'dera_meeting_offset_v1';
 
   const BRAND_LABELS = { cp: 'CareerPaddy', tratun: 'Tratun', studio: 'Enigma Studio', pray: 'Praying Scripture', meet: 'Meetings' };
 
@@ -934,8 +934,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await response.json();
       state = {};
       data.forEach(row => {
-        if (row.id.startsWith('k_')) {
-          const strippedId = row.id.replace('k_', '');
+        if (row.id.startsWith('d_')) {
+          const strippedId = row.id.replace('d_', '');
           if (row.counter_val !== 0) {
             state[strippedId] = row.counter_val;
           } else {
@@ -949,7 +949,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function syncToCloud(taskId, val) {
     const payload = {
-      id: `k_${taskId}`,
+      id: `d_${taskId}`,
       is_done: typeof val === 'boolean' ? val : false,
       counter_val: typeof val === 'number' ? val : 0,
       updated_at: new Date().toISOString()
@@ -1242,7 +1242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(fullSchedule.length > 0) {
       const firstDay = new Date(fullSchedule[0].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
       const lastDay = new Date(fullSchedule[6].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
-      document.getElementById('weekRangeDisplay').innerHTML = `${firstDay} – ${lastDay} &nbsp;·&nbsp; KOKOMA`;
+      document.getElementById('weekRangeDisplay').innerHTML = `${firstDay} – ${lastDay} &nbsp;·&nbsp; DERA`;
     }
 
     displaySchedule.forEach(day => {
