@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dera — Premium Output Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #09060b;
+      --surface: rgba(19, 13, 24, 0.75);
+      --border: rgba(188, 163, 193, 0.15);
+      --border-light: rgba(188, 163, 193, 0.3);
+      --text: #F3EFF5;
+      --muted: #A393A8;
+      --cp: #FF6B35;
+      --tratun: #2563EB;
+      --studio: #A855F7;
+      --pray: #10B981;
+      --meet: #64748B;
+      --accent-purple: #6d3576;
+      --accent-gold: #9c6823;
+      --accent-lavender: #bca3c1;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: radial-gradient(at 0% 0%, rgba(109, 53, 118, 0.4) 0px, transparent 50%),
+                  radial-gradient(at 100% 100%, rgba(156, 104, 35, 0.25) 0px, transparent 50%),
+                  radial-gradient(at 50% 100%, rgba(188, 163, 193, 0.15) 0px, transparent 70%),
+                  var(--bg);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      padding: 32px 32px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 46px;
+      font-weight: 800;
+      letter-spacing: 8px;
+      color: #fff;
+      line-height: 1;
+      text-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--accent-lavender);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-top: 8px;
+      font-weight: 500;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .controls-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .select-dropdown {
+      background: rgba(19, 13, 24, 0.9);
+      border: 1px solid var(--border-light);
+      padding: 8px 14px;
+      border-radius: 6px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .action-btn {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-light);
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .action-btn:hover, .action-btn.active-view-btn {
+      background: var(--accent-purple);
+      border-color: var(--accent-lavender);
+    }
+
+    .meta-time-block {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .clock-display {
+      text-align: right;
+    }
+
+    .clock-time {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 44px;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--text);
+      letter-spacing: 1px;
+    }
+
+    .clock-label {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .today-block {
+      text-align: right;
+    }
+
+    .today-count {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 44px;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--accent-gold);
+    }
+
+    .today-count-label {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .metrics-bar {
+      padding: 14px 32px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .streak-container {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .streak-label {
+      font-size: 9px;
+      color: var(--accent-lavender);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .streak-dots {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .s-dot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .s-circle {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--border-light);
+      transition: all 0.3s ease;
+    }
+
+    .s-circle.done    { background: var(--pray); box-shadow: 0 0 8px var(--pray); }
+    .s-circle.partial { background: var(--cp); box-shadow: 0 0 8px var(--cp); }
+    .s-circle.skipped { background: var(--meet); box-shadow: none; opacity: 0.4; }
+    .s-circle.is-today {
+      background: transparent;
+      border: 2px solid var(--accent-gold);
+      box-shadow: 0 0 6px var(--accent-gold);
+    }
+
+    .s-day-label {
+      font-size: 9px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .progress-analytics {
+      flex: 1;
+      max-width: 400px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .progress-bg {
+      flex: 1;
+      height: 6px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-purple), var(--accent-gold));
+      transition: width 0.4s ease;
+    }
+
+    .day-tabs-row {
+      display: none;
+      padding: 10px 32px;
+      background: rgba(0,0,0,0.1);
+      border-bottom: 1px solid var(--border);
+      gap: 8px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(109, 53, 118, 0.3);
+      border-color: var(--accent-purple);
+      font-weight: 600;
+    }
+
+    .grid-wrapper {
+      flex: 1;
+      overflow-x: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .week-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(180px, 1fr));
+      min-width: 1260px;
+      height: 100%;
+      flex: 1;
+    }
+
+    .week-grid.single-mode {
+      grid-template-columns: 1fr;
+      min-width: 0;
+      max-width: 600px;
+      margin: 40px auto;
+      width: 100%;
+      padding: 0 20px;
+    }
+
+    .day-col {
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .day-col.skipped-state {
+      opacity: 0.4;
+    }
+
+    .day-col:last-child { border-right: none; }
+    .day-col.is-today { background: rgba(109, 53, 118, 0.12); }
+    
+    .day-col.is-today::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent-purple), var(--accent-gold));
+    }
+
+    .week-grid.single-mode .day-col {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .day-head {
+      padding: 20px 16px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .day-head-meta {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+
+    .day-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--muted);
+      line-height: 1.1;
+    }
+
+    .day-date {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: var(--accent-lavender);
+      text-transform: uppercase;
+    }
+
+    .day-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .day-completion-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent-gold);
+    }
+
+    .skip-toggle-link {
+      font-size: 9px;
+      color: var(--muted);
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+
+    .skip-toggle-link:hover {
+      color: var(--cp);
+    }
+
+    .day-col.skipped-state .skip-toggle-link {
+      color: var(--pray);
+    }
+
+    .day-col.is-today .day-name { color: #fff; }
+    .day-col.is-today .day-date { color: var(--accent-gold); }
+
+    .day-tasks {
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .skipped-msg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .task-item {
+      padding: 12px 14px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .task-item:hover { 
+      border-color: var(--border-light); 
+      background: rgba(255, 255, 255, 0.04);
+    }
+    
+    .task-item.done { opacity: 0.25; }
+
+    .task-item.carry-forward-derived {
+      border-style: dashed;
+      border-color: rgba(255, 107, 53, 0.4);
+      background: rgba(255, 107, 53, 0.02);
+    }
+
+    .task-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .brand-pip {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 5px;
+    }
+
+    .brand-cp    .brand-pip { background: var(--cp); box-shadow: 0 0 6px var(--cp); }
+    .brand-tratun .brand-pip { background: var(--tratun); box-shadow: 0 0 6px var(--tratun); }
+    .brand-studio .brand-pip { background: var(--studio); box-shadow: 0 0 6px var(--studio); }
+    .brand-pray   .brand-pip { background: var(--pray); box-shadow: 0 0 6px var(--pray); }
+    .brand-meet   .brand-pip { background: var(--meet); box-shadow: 0 0 6px var(--meet); }
+
+    .task-check {
+      width: 15px;
+      height: 15px;
+      border: 1.5px solid var(--muted);
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .task-item.done .task-check {
+      background: var(--accent-purple);
+      border-color: var(--accent-lavender);
+    }
+
+    .chk-svg { opacity: 0; width: 9px; height: 7px; }
+    .task-item.done .chk-svg { opacity: 1; }
+
+    .task-content { flex: 1; }
+
+    .task-text {
+      font-size: 12px;
+      line-height: 1.5;
+      color: #fff;
+      font-weight: 400;
+    }
+
+    .task-item.done .task-text {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+
+    .task-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+
+    .task-time {
+      font-size: 10px;
+      color: var(--accent-lavender);
+    }
+
+    .task-badges {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .one-time-tag {
+      display: inline-block;
+      font-size: 8px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--pray);
+      background: rgba(16, 185, 129, 0.12);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .carry-tag {
+      display: inline-block;
+      font-size: 8px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--cp);
+      background: rgba(255, 107, 53, 0.12);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .task-notes-drawer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .task-notes-drawer.open {
+      max-height: 100px;
+    }
+
+    .task-notes-field {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent-lavender);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 6px 8px;
+      margin-top: 8px;
+      outline: none;
+      resize: none;
+    }
+
+    .task-notes-field:focus {
+      border-color: var(--accent-purple);
+    }
+
+    .counter-widget {
+      border: 1px solid var(--border-light);
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: rgba(109, 53, 118, 0.05);
+    }
+
+    .counter-head {
+      font-size: 10px;
+      color: var(--text);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .counter-head span { color: var(--accent-gold); font-weight: 600; }
+
+    .counter-time {
+      font-size: 9px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .counter-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    .c-btn {
+      flex: 1;
+      height: 28px;
+      border: 1.5px solid var(--border-light);
+      background: transparent;
+      color: var(--muted);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .c-btn.active { background: var(--accent-purple); border-color: var(--accent-lavender); color: #fff; }
+
+    .summary-view-pane {
+      display: none;
+      max-width: 800px;
+      width: 100%;
+      margin: 40px auto;
+      padding: 0 20px;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .macro-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .macro-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #fff;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+
+    .brand-row-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .brand-row-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .brand-label-text {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-bar-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .brand-bar-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 0.5s ease;
+      border-radius: 4px;
+    }
+
+    .reupload-running-block {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 107, 53, 0.05);
+      border: 1px dashed var(--cp);
+      padding: 16px;
+      border-radius: 6px;
+    }
+
+    .reupload-running-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text);
+    }
+
+    .reupload-running-count {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 36px;
+      font-weight: 800;
+      color: var(--cp);
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(7, 7, 15, 0.85);
+      backdrop-filter: blur(8px);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: #14101A;
+      border: 1px solid var(--border-light);
+      padding: 28px;
+      border-radius: 8px;
+      width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-content h3 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 22px;
+    }
+
+    .modal-content input, .modal-content select {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      padding: 10px;
+      color: #fff;
+      font-family: inherit;
+    }
+
+    .modal-content select option {
+      background: #14101A !important;
+      color: #fff !important;
+    }
+
+    .footer-legend {
+      padding: 16px 32px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      background: rgba(0,0,0,0.2);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      color: var(--accent-lavender);
+      text-transform: uppercase;
+    }
+
+    .l-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    body:has(#viewLayoutSwitch[value="day"]) .header { padding: 16px 20px; }
+    body:has(#viewLayoutSwitch[value="day"]) .brand-title { font-size: 32px; }
+    body:has(#viewLayoutSwitch[value="day"]) .metrics-bar { padding: 10px 20px; }
+    body:has(#viewLayoutSwitch[value="day"]) .week-grid.single-mode { margin: 15px auto; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <div class="brand-title">KOKOMA TRACKER</div>
+      <div class="brand-sub" id="weekRangeDisplay">OUTPUT CORE</div>
+    </div>
+    <div class="header-right">
+      <div class="controls-wrapper">
+        <select class="select-dropdown" id="viewLayoutSwitch">
+          <option value="week">Full Week View</option>
+          <option value="day">Single Day View</option>
+        </select>
+        <select class="select-dropdown" id="brandFilter">
+          <option value="all">All Brands</option>
+          <option value="cp">CareerPaddy</option>
+          <option value="tratun">Tratun</option>
+          <option value="studio">Enigma Studio</option>
+          <option value="pray">Praying Scripture</option>
+          <option value="meet">Meetings</option>
+        </select>
+        <select class="select-dropdown" id="meetingOffsetConfig">
+          <option value="20">Meet Alert: 20m early</option>
+          <option value="15">Meet Alert: 15m early</option>
+          <option value="30">Meet Alert: 30m early</option>
+        </select>
+        <button class="action-btn" id="summaryViewToggleBtn">Summary</button>
+        <button class="action-btn" id="addTaskBtn">+ Task</button>
+        <button class="action-btn" id="resetBtn">Reset</button>
+      </div>
+      <div class="meta-time-block">
+        <div class="clock-display">
+          <div class="clock-time" id="liveClockDisplay">00:00:00</div>
+          <div class="clock-label">Local Time</div>
+        </div>
+        <div class="today-block">
+          <div class="today-count" id="todayCount">—</div>
+          <div class="today-count-label">Today Done</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="metrics-bar">
+    <div class="streak-container">
+      <div class="streak-label">7-Day Rhythm</div>
+      <div class="streak-dots" id="streakDots"></div>
+    </div>
+    <div class="progress-analytics">
+      <div class="streak-label">Velocity</div>
+      <div class="progress-bg"><div class="progress-fill" id="velocityFill"></div></div>
+    </div>
+  </div>
+
+  <div class="day-tabs-row" id="dayTabsRow"></div>
+
+  <div class="grid-wrapper">
+    <div class="week-grid" id="weekGrid"></div>
+    
+    <div class="summary-view-pane" id="summaryViewPane">
+      <div class="macro-card">
+        <div class="macro-title">Brand Track Diagnostics</div>
+        <div id="brandMetricsAnchor"></div>
+      </div>
+      <div class="reupload-running-block">
+        <div class="reupload-running-title">Weekly Cumulative Reuploads</div>
+        <div class="reupload-running-count" id="reuploadRunningCount">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-legend">
+    <div class="legend-item"><div class="l-dot" style="background:var(--cp)"></div>CareerPaddy</div>
+    <div class="legend-item"><div class="l-dot" style="background:var(--tratun)"></div>Tratun</div>
+    <div class="legend-item"><div class="l-dot" style="background:var(--studio)"></div>Enigma Studio</div>
+    <div class="legend-item"><div class="l-dot" style="background:var(--pray)"></div>Praying Scripture</div>
+    <div class="legend-item"><div class="l-dot" style="background:var(--meet)"></div>Meeting</div>
+  </div>
+
+  <div class="modal" id="taskModal">
+    <div class="modal-content">
+      <h3>INJECT CUSTOM TASK</h3>
+      <select id="modDay"></select>
+      <select id="modBrand">
+        <option value="cp">CareerPaddy</option>
+        <option value="tratun">Tratun</option>
+        <option value="studio">Enigma Studio</option>
+        <option value="pray">Praying Scripture</option>
+        <option value="meet">Meeting</option>
+      </select>
+      <select id="modType">
+        <option value="production">Production Task (Carries Forward)</option>
+        <option value="time-anchored">Time-Anchored (Stays Behind)</option>
+      </select>
+      <input type="text" id="modText" placeholder="Task description">
+      <input type="text" id="modTime" placeholder="Time string parsed (e.g. 4pm, 11am)">
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="action-btn" id="modCancel" style="flex:1;">Cancel</button>
+        <button class="action-btn" id="modSave" style="flex:1; background:var(--accent-purple)">Save</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const SUPABASE_URL = "https://gbewpiujdqnqswdbrigt.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_wI8epgUrgKSI9CTg9ytHNA_dzrkqeko";
+
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  function getTrackingWeek() {
+    const sat = new Date('2026-06-06T12:00:00');
+    const labels = ['SAT', 'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI'];
+    const keys = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'];
+    
+    return keys.map((key, index) => {
+      const d = new Date(sat);
+      d.setDate(sat.getDate() + index);
+      return {
+        key: key,
+        label: labels[index],
+        date: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+      };
+    });
+  }
+
+  const baseWeekConfig = getTrackingWeek();
+  
+  const BASE_SCHEDULE_TEMPLATES = {
+    sat: [
+      { id: 'sat_default', brand: 'cp', text: 'Initialize schedule targets', time: 'Anytime', taskType: 'production' }
+    ],
+    sun: [],
+    mon: [],
+    tue: [],
+    wed: [],
+    thu: [],
+    fri: []
+  };
+
+  const CUSTOM_TASKS_KEY = 'kokoma_custom_tasks_v6';
+  const TASK_NOTES_KEY = 'kokoma_task_notes_v1';
+  const MEETING_OFFSET_KEY = 'kokoma_meeting_offset_v1';
+
+  const BRAND_LABELS = { cp: 'CareerPaddy', tratun: 'Tratun', studio: 'Enigma Studio', pray: 'Praying Scripture', meet: 'Meetings' };
+
+  function getToday() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  let state = {}; 
+  let customTasks = (() => { try { return JSON.parse(localStorage.getItem(CUSTOM_TASKS_KEY)) || []; } catch { return []; } })();
+  let taskNotes = (() => { try { return JSON.parse(localStorage.getItem(TASK_NOTES_KEY)) || {}; } catch { return {}; } })();
+  let currentMeetingOffset = (() => { try { return parseInt(localStorage.getItem(MEETING_OFFSET_KEY), 10) || 20; } catch { return 20; } })();
+  
+  let selectedBrandFilter = 'all';
+  let currentLayoutView = 'week'; 
+  let activeDayTab = 'sat'; 
+  let alertedTasks = {}; 
+  let summaryLayoutVisible = false;
+
+  document.getElementById('meetingOffsetConfig').value = currentMeetingOffset.toString();
+
+  const detectedTodayStr = getToday();
+  const foundTodayObj = baseWeekConfig.find(d => d.date === detectedTodayStr);
+  if (foundTodayObj) activeDayTab = foundTodayObj.key;
+
+  function saveCustomTasks(t) { localStorage.setItem(CUSTOM_TASKS_KEY, JSON.stringify(t)); }
+  function saveTaskNotes() { localStorage.setItem(TASK_NOTES_KEY, JSON.stringify(taskNotes)); }
+
+  async function fetchCloudState() {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?select=*`, {
+        method: 'GET',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      state = {};
+      data.forEach(row => {
+        if (row.id.startsWith('k_')) {
+          const strippedId = row.id.replace('k_', '');
+          if (row.counter_val !== 0) {
+            state[strippedId] = row.counter_val;
+          } else {
+            state[strippedId] = row.is_done;
+          }
+        }
+      });
+      executeRenderCycles();
+    } catch(e) { console.error("Cloud engine failure: ", e); }
+  }
+
+  async function syncToCloud(taskId, val) {
+    const payload = {
+      id: `k_${taskId}`,
+      is_done: typeof val === 'boolean' ? val : false,
+      counter_val: typeof val === 'number' ? val : 0,
+      updated_at: new Date().toISOString()
+    };
+
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/tracker_state`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch(e) { console.error("Cloud write error: ", e); }
+  }
+
+  function buildSchedule() {
+    return baseWeekConfig.map(day => {
+      return {
+        ...day,
+        tasks: [...(BASE_SCHEDULE_TEMPLATES[day.key] || []), ...customTasks.filter(t => t.dayKey === day.key)]
+      };
+    });
+  }
+
+  function getComputedDayTasks(day, scheduleContext) {
+    if (state[`skip_day_${day.key}`]) return [];
+
+    const currentIdx = baseWeekConfig.findIndex(d => d.key === day.key);
+    let dayTasksCombined = [...day.tasks];
+
+    for (let i = 0; i < currentIdx; i++) {
+      const priorDay = scheduleContext[i];
+      if (state[`skip_day_${priorDay.key}`]) continue;
+
+      priorDay.tasks.forEach(t => {
+        if (t.taskType === 'production' && !t.isCounter) {
+          if (!state[t.id]) {
+            if (!dayTasksCombined.some(existing => existing.id === t.id)) {
+              dayTasksCombined.push({ ...t, isCarriedForward: true });
+            }
+          }
+        }
+      });
+    }
+    return dayTasksCombined;
+  }
+
+  function playAlertChime() {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+      osc.frequency.setValueAtTime(880.00, audioCtx.currentTime + 0.15);
+      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+    } catch(e) { console.log(e); }
+  }
+
+  function parseTimeString(timeStr) {
+    if (!timeStr) return null;
+    let clean = timeStr.toLowerCase().replace(/\s+/g, '');
+    let isPm = clean.includes('pm'); let isAm = clean.includes('am');
+    if (!isPm && !isAm) return null; 
+    clean = clean.replace('pm','').replace('am','');
+    let hours = 0, minutes = 0;
+    if (clean.includes(':')) {
+      let parts = clean.split(':'); hours = parseInt(parts[0], 10); minutes = parseInt(parts[1], 10);
+    } else { hours = parseInt(clean, 10); }
+    if (isPm && hours < 12) hours += 12;
+    if (isAm && hours === 12) hours = 0;
+    return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;
+  }
+
+  function calculateMeetingAlarmTargetTime(baseTimeStr, offsetMinutes) {
+    const rawParsedTime = parseTimeString(baseTimeStr);
+    if (!rawParsedTime) return null;
+    
+    let [hrs, mins] = rawParsedTime.split(':').map(Number);
+    let cumulativeMinutes = (hrs * 60) + mins;
+    
+    cumulativeMinutes -= offsetMinutes;
+    if (cumulativeMinutes < 0) cumulativeMinutes += 1440; 
+    
+    const targetHrs = Math.floor(cumulativeMinutes / 60);
+    const targetMins = cumulativeMinutes % 60;
+    
+    return `${String(targetHrs).padStart(2,'0')}:${String(targetMins).padStart(2,'0')}`;
+  }
+
+  function runBackgroundAlarmDaemon() {
+    setInterval(() => {
+      const now = new Date();
+      const hrs = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const secs = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('liveClockDisplay').textContent = `${hrs}:${mins}:${secs}`;
+
+      const currentDayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const currentTimeStr = `${hrs}:${mins}`;
+      const fullSchedule = buildSchedule();
+      const targetDay = fullSchedule.find(d => d.date === currentDayStr);
+      if (!targetDay || state[`skip_day_${targetDay.key}`]) return;
+
+      const contextualTasks = getComputedDayTasks(targetDay, fullSchedule);
+      contextualTasks.forEach(task => {
+        if (task.isCounter || state[task.id]) return;
+        
+        let targetExecutionTime = null;
+        let alertMessageBody = `[${task.time}] ${task.text}`;
+        
+        if (task.brand === 'meet') {
+          targetExecutionTime = calculateMeetingAlarmTargetTime(task.time, currentMeetingOffset);
+          alertMessageBody = `MEETING KICKOFF IN ${currentMeetingOffset} MINS: ${task.text}`;
+        } else {
+          targetExecutionTime = parseTimeString(task.time);
+        }
+        
+        if (!targetExecutionTime) return;
+
+        if (targetExecutionTime === currentTimeStr) {
+          if (!alertedTasks[task.id]) {
+            alertedTasks[task.id] = true;
+            playAlertChime();
+            if (Notification.permission === 'granted') {
+              new Notification(`HIGH-PRIORITY ALERT`, { body: alertMessageBody });
+            }
+          }
+        }
+      });
+    }, 1000);
+  }
+
+  function getCalculatedProgressMetrics(day, fullSchedule) {
+    if (state[`skip_day_${day.key}`]) return { total: 0, done: 0, percentage: 0, isSkipped: true };
+    const contextualTasks = getComputedDayTasks(day, fullSchedule);
+    let total = contextualTasks.length, done = 0;
+    if (total === 0) return { total: 0, done: 0, percentage: 0, isSkipped: false };
+    contextualTasks.forEach(t => {
+      if (t.isCounter) { if ((state[t.id] || 0) > 0) done++; }
+      else { if (state[t.id]) done++; }
+    });
+    return { total, done, percentage: Math.round((done / total) * 100), isSkipped: false };
+  }
+
+  function dayCompletion(day, fullSchedule) {
+    const metrics = getCalculatedProgressMetrics(day, fullSchedule);
+    if (metrics.isSkipped) return 'skipped';
+    if (metrics.total === 0) return 'empty';
+    return metrics.done === 0 ? 'empty' : (metrics.done === metrics.total ? 'done' : 'partial');
+  }
+
+  function calculateGlobalVelocity() {
+    const fullSchedule = buildSchedule();
+    let totalUnits = 0, completedUnits = 0;
+    fullSchedule.forEach(day => {
+      if (state[`skip_day_${day.key}`]) return; 
+      const contextualTasks = getComputedDayTasks(day, fullSchedule);
+      contextualTasks.forEach(t => {
+        totalUnits++;
+        if (t.isCounter) { if ((state[t.id] || 0) > 0) completedUnits++; }
+        else { if (state[t.id]) completedUnits++; }
+      });
+    });
+    document.getElementById('velocityFill').style.width = `${totalUnits > 0 ? (completedUnits / totalUnits) * 100 : 0}%`;
+  }
+
+  function renderStreak() {
+    const el = document.getElementById('streakDots'); el.innerHTML = '';
+    const today = getToday();
+    const fullSchedule = buildSchedule();
+    fullSchedule.forEach(day => {
+      const dot = document.createElement('div'); dot.className = 's-dot';
+      const circle = document.createElement('div'); circle.className = 's-circle';
+      const label = document.createElement('div'); label.className = 's-day-label';
+      label.textContent = day.label;
+      if (day.date === today) {
+        circle.classList.add('is-today');
+      } else {
+        const status = dayCompletion(day, fullSchedule);
+        if (status === 'done') circle.classList.add('done');
+        if (status === 'partial') circle.classList.add('partial');
+        if (status === 'skipped') circle.classList.add('skipped');
+      }
+      dot.appendChild(circle); dot.appendChild(label); el.appendChild(dot);
+    });
+  }
+
+  function updateTodayCount() {
+    const today = getToday();
+    const fullSchedule = buildSchedule();
+    const dayData = fullSchedule.find(d => d.date === today);
+    const el = document.getElementById('todayCount');
+    if (!dayData) { el.textContent = '—'; return; }
+    if (state[`skip_day_${dayData.key}`]) { el.textContent = 'SKIP'; return; }
+    const metrics = getCalculatedProgressMetrics(dayData, fullSchedule);
+    el.textContent = `${metrics.done}/${metrics.total}`;
+  }
+
+  function renderTabsRow() {
+    const row = document.getElementById('dayTabsRow');
+    if (currentLayoutView === 'week' || summaryLayoutVisible) { row.style.display = 'none'; return; }
+    row.style.display = 'flex'; row.innerHTML = '';
+    baseWeekConfig.forEach(d => {
+      const btn = document.createElement('button');
+      btn.className = 'tab-btn' + (activeDayTab === d.key ? ' active' : '');
+      btn.textContent = `${d.label} (${new Date(d.date + 'T12:00:00').getDate()})`;
+      btn.addEventListener('click', () => { activeDayTab = d.key; renderTabsRow(); renderGrid(); });
+      row.appendChild(btn);
+    });
+  }
+
+  function executeSummaryRenderAnalytics() {
+    const anchor = document.getElementById('brandMetricsAnchor');
+    anchor.innerHTML = '';
+    const fullSchedule = buildSchedule();
+    let reuploadRunningSum = 0;
+    
+    const diagnostics = { cp: { total: 0, done: 0 }, tratun: { total: 0, done: 0 }, studio: { total: 0, done: 0 }, pray: { total: 0, done: 0 }, meet: { total: 0, done: 0 } };
+
+    fullSchedule.forEach(day => {
+      const contextualTasks = [...day.tasks];
+      contextualTasks.forEach(t => {
+        if (t.isCounter) {
+          reuploadRunningSum += (state[t.id] || 0);
+        } else {
+          if (diagnostics[t.brand]) {
+            diagnostics[t.brand].total++;
+            if (state[t.id]) diagnostics[t.brand].done++;
+          }
+        }
+      });
+    });
+
+    Object.keys(diagnostics).forEach(brandKey => {
+      const metric = diagnostics[brandKey];
+      const percent = metric.total > 0 ? Math.round((metric.done / metric.total) * 100) : 0;
+      const row = document.createElement('div');
+      row.className = 'brand-row-metric';
+      row.innerHTML = `
+        <div class="brand-row-meta">
+          <div class="brand-label-text">
+            <div class="brand-pip" style="margin-top:0; background:var(--${brandKey}); box-shadow: 0 0 6px var(--${brandKey});"></div>
+            ${BRAND_LABELS[brandKey]}
+          </div>
+          <div style="color:var(--muted)">${metric.done}/${metric.total} (${percent}%)</div>
+        </div>
+        <div class="brand-bar-track">
+          <div class="brand-bar-fill" style="width: ${percent}%; background: var(--${brandKey});"></div>
+        </div>
+      `;
+      anchor.appendChild(row);
+    });
+    document.getElementById('reuploadRunningCount').textContent = reuploadRunningSum;
+  }
+
+  function renderGrid() {
+    const grid = document.getElementById('weekGrid'); 
+    const summaryPane = document.getElementById('summaryViewPane');
+    
+    if (summaryLayoutVisible) {
+      grid.style.display = 'none';
+      summaryPane.style.display = 'flex';
+      executeSummaryRenderAnalytics();
+      return;
+    }
+    
+    grid.style.display = 'grid';
+    summaryPane.style.display = 'none';
+    grid.innerHTML = '';
+    
+    const today = getToday();
+    const fullSchedule = buildSchedule();
+    let displaySchedule = [...fullSchedule];
+
+    if (currentLayoutView === 'day') {
+      grid.className = 'week-grid single-mode';
+      displaySchedule = displaySchedule.filter(d => d.key === activeDayTab);
+    } else {
+      grid.className = 'week-grid';
+    }
+
+    if(fullSchedule.length > 0) {
+      const firstDay = new Date(fullSchedule[0].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
+      const lastDay = new Date(fullSchedule[6].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+      document.getElementById('weekRangeDisplay').innerHTML = `${firstDay} – ${lastDay} &nbsp;·&nbsp; KOKOMA`;
+    }
+
+    displaySchedule.forEach(day => {
+      const isSkipped = state[`skip_day_${day.key}`];
+      const col = document.createElement('div'); 
+      col.className = 'day-col' + (day.date === today ? ' is-today' : '') + (isSkipped ? ' skipped-state' : '');
+      
+      const head = document.createElement('div'); head.className = 'day-head';
+      const headMetaRow = document.createElement('div'); headMetaRow.className = 'day-head-meta';
+      const nameEl = document.createElement('div'); nameEl.className = 'day-name'; nameEl.textContent = day.label;
+      
+      const dayControls = document.createElement('div');
+      dayControls.className = 'day-controls';
+      
+      const metrics = getCalculatedProgressMetrics(day, fullSchedule);
+      const completionEl = document.createElement('div'); 
+      completionEl.className = 'day-completion-badge';
+      completionEl.textContent = isSkipped ? 'SKIPPED' : (metrics.total > 0 ? `${metrics.percentage}%` : '0%');
+      
+      const skipLink = document.createElement('a');
+      skipLink.className = 'skip-toggle-link';
+      skipLink.textContent = isSkipped ? '[Track]' : '[Skip]';
+      skipLink.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const skipKey = `skip_day_${day.key}`;
+        state[skipKey] = !state[skipKey];
+        syncToCloud(skipKey, state[skipKey]);
+        executeRenderCycles();
+      });
+      
+      dayControls.appendChild(completionEl);
+      dayControls.appendChild(skipLink);
+      headMetaRow.appendChild(nameEl); headMetaRow.appendChild(dayControls);
+      
+      const dateEl = document.createElement('div'); dateEl.className = 'day-date';
+      dateEl.textContent = new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+      
+      head.appendChild(headMetaRow); head.appendChild(dateEl); col.appendChild(head);
+
+      const tasksEl = document.createElement('div'); tasksEl.className = 'day-tasks';
+      
+      if (isSkipped) {
+        const skippedMsg = document.createElement('div');
+        skippedMsg.className = 'skipped-msg';
+        skippedMsg.textContent = 'Day Allocation Skipped';
+        tasksEl.appendChild(skippedMsg);
+      } else {
+        const contextualTasks = getComputedDayTasks(day, fullSchedule);
+        contextualTasks.forEach(task => {
+          if (selectedBrandFilter !== 'all' && task.brand !== selectedBrandFilter) return;
+
+          if (task.isCounter) {
+            const widget = document.createElement('div'); widget.className = 'counter-widget';
+            const cHead = document.createElement('div'); cHead.className = 'counter-head';
+            cHead.innerHTML = `Reupload <span>Admin</span>`;
+            const cTime = document.createElement('div'); cTime.className = 'counter-time'; cTime.textContent = task.time;
+            const btns = document.createElement('div'); btns.className = 'counter-btns';
+            const curr = state[task.id] !== undefined ? state[task.id] : 0;
+            [0,1,2].forEach(n => {
+              const btn = document.createElement('button'); btn.className = 'c-btn' + (curr === n ? ' active' : ''); btn.textContent = n;
+              btn.addEventListener('click', (e) => {
+                e.stopPropagation(); state[task.id] = n; 
+                syncToCloud(task.id, n); executeRenderCycles();
+              });
+              btns.appendChild(btn);
+            });
+            widget.appendChild(cHead); widget.appendChild(cTime); widget.appendChild(btns); tasksEl.appendChild(widget);
+          } else {
+            const item = document.createElement('div'); 
+            item.className = `task-item brand-${task.brand}${state[task.id] ? ' done' : ''}${task.isCarriedForward ? ' carry-forward-derived' : ''}`;
+            const row = document.createElement('div'); row.className = 'task-row';
+            const pip = document.createElement('div'); pip.className = 'brand-pip';
+            const check = document.createElement('div'); check.className = 'task-check';
+            check.innerHTML = `<svg class="chk-svg" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            const content = document.createElement('div'); content.className = 'task-content';
+            const text = document.createElement('div'); text.className = 'task-text'; text.textContent = task.text;
+            
+            const metaRow = document.createElement('div'); metaRow.className = 'task-meta-row';
+            const time = document.createElement('div'); time.className = 'task-time'; time.textContent = task.time;
+            metaRow.appendChild(time);
+            
+            const badgesContainer = document.createElement('div');
+            badgesContainer.className = 'task-badges';
+            
+            if (task.isCarriedForward) {
+              const carryBadge = document.createElement('div'); carryBadge.className = 'carry-tag'; carryBadge.textContent = 'Carry';
+              badgesContainer.appendChild(carryBadge);
+            }
+            if (task.oneTime) {
+              const badge = document.createElement('div'); badge.className = 'one-time-tag'; badge.textContent = 'One-time';
+              badgesContainer.appendChild(badge);
+            }
+            metaRow.appendChild(badgesContainer);
+            content.appendChild(text); content.appendChild(metaRow);
+            
+            const drawer = document.createElement('div'); drawer.className = 'task-notes-drawer';
+            const notesInput = document.createElement('textarea');
+            notesInput.className = 'task-notes-field';
+            notesInput.placeholder = 'Add contextual logging notes...';
+            notesInput.value = taskNotes[task.id] || '';
+            
+            notesInput.addEventListener('click', (e) => e.stopPropagation());
+            notesInput.addEventListener('input', (e) => {
+              taskNotes[task.id] = e.target.value;
+              saveTaskNotes();
+            });
+            
+            drawer.appendChild(notesInput);
+            content.appendChild(drawer);
+            row.appendChild(pip); row.appendChild(check); row.appendChild(content); item.appendChild(row);
+            
+            item.addEventListener('click', (e) => {
+              if (e.target === notesInput) return;
+              const completeToggleClick = (e.target.closest('.task-check') || state[task.id]);
+              if (completeToggleClick) {
+                state[task.id] = !state[task.id];
+                syncToCloud(task.id, state[task.id]); executeRenderCycles();
+              } else {
+                document.querySelectorAll('.task-notes-drawer').forEach(d => {
+                  if(d !== drawer) d.classList.remove('open');
+                });
+                drawer.classList.toggle('open');
+              }
+            });
+            tasksEl.appendChild(item);
+          }
+        });
+      }
+      col.appendChild(tasksEl); grid.appendChild(col);
+    });
+  }
+
+  function executeRenderCycles() { renderGrid(); renderTabsRow(); renderStreak(); updateTodayCount(); calculateGlobalVelocity(); }
+
+  document.getElementById('viewLayoutSwitch').addEventListener('change', (e) => { 
+    summaryLayoutVisible = false;
+    document.getElementById('summaryViewToggleBtn').classList.remove('active-view-btn');
+    currentLayoutView = e.target.value; 
+    executeRenderCycles(); 
+  });
+  
+  document.getElementById('brandFilter').addEventListener('change', (e) => { selectedBrandFilter = e.target.value; renderGrid(); });
+  
+  document.getElementById('meetingOffsetConfig').addEventListener('change', (e) => {
+    currentMeetingOffset = parseInt(e.target.value, 10);
+    localStorage.setItem(MEETING_OFFSET_KEY, currentMeetingOffset.toString());
+    alertedTasks = {}; 
+  });
+
+  document.getElementById('summaryViewToggleBtn').addEventListener('click', (e) => {
+    summaryLayoutVisible = !summaryLayoutVisible;
+    e.target.classList.toggle('active-view-btn', summaryLayoutVisible);
+    executeRenderCycles();
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    if (confirm('Reset weekly tracking operational vectors?')) {
+      state = {}; customTasks = []; taskNotes = {}; saveCustomTasks(customTasks); saveTaskNotes();
+      executeRenderCycles();
+    }
+  });
+
+  const modal = document.getElementById('taskModal');
+  document.getElementById('addTaskBtn').addEventListener('click', () => {
+    const daySelect = document.getElementById('modDay'); daySelect.innerHTML = '';
+    baseWeekConfig.forEach(d => { daySelect.innerHTML += `<option value="${d.key}">${d.label}</option>`; });
+    modal.style.display = 'flex';
+  });
+  document.getElementById('modCancel').addEventListener('click', () => modal.style.display = 'none');
+  document.getElementById('modSave').addEventListener('click', () => {
+    const txt = document.getElementById('modText').value.trim(); if(!txt) return alert('Task text missing.');
+    customTasks.push({ 
+      id: 'custom_' + Date.now(), 
+      dayKey: document.getElementById('modDay').value, 
+      brand: document.getElementById('modBrand').value, 
+      text: txt, 
+      time: document.getElementById('modTime').value.trim() || 'Anytime', 
+      oneTime: true,
+      taskType: document.getElementById('modType').value
+    });
+    saveCustomTasks(customTasks); modal.style.display = 'none';
+    document.getElementById('modText').value = ''; document.getElementById('modTime').value = '';
+    executeRenderCycles();
+  });
+
+  function bootTrackerEngine() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const modeParam = urlParams.get('view');
+    
+    if (modeParam === 'day') {
+      currentLayoutView = 'day';
+      document.getElementById('viewLayoutSwitch').value = 'day';
+    } else {
+      currentLayoutView = 'week';
+      document.getElementById('viewLayoutSwitch').value = 'week';
+    }
+    runBackgroundAlarmDaemon();
+    fetchCloudState();
+  }
+
+  bootTrackerEngine();
+});
+</script>
+</body>
+</html>
