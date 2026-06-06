@@ -107,7 +107,7 @@
       transition: all 0.15s;
     }
 
-    .action-btn:hover {
+    .action-btn:hover, .action-btn.active-view-btn {
       background: var(--accent-purple);
       border-color: var(--accent-lavender);
     }
@@ -593,6 +593,97 @@
 
     .c-btn.active { background: var(--accent-purple); border-color: var(--accent-lavender); color: #fff; }
 
+    /* Phase 3: Weekly Summary Dashboard System Layout Styles */
+    .summary-view-pane {
+      display: none;
+      max-width: 800px;
+      width: 100%;
+      margin: 40px auto;
+      padding: 0 20px;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .macro-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .macro-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #fff;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+
+    .brand-row-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .brand-row-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .brand-label-text {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-bar-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .brand-bar-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 0.5s ease;
+      border-radius: 4px;
+    }
+
+    .reupload-running-block {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 107, 53, 0.05);
+      border: 1px dashed var(--cp);
+      padding: 16px;
+      border-radius: 6px;
+    }
+
+    .reupload-running-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text);
+    }
+
+    .reupload-running-count {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 36px;
+      font-weight: 800;
+      color: var(--cp);
+    }
+
     .modal {
       display: none;
       position: fixed;
@@ -674,6 +765,7 @@
           <option value="pray">Praying Scripture</option>
           <option value="meet">Meetings</option>
         </select>
+        <button class="action-btn" id="summaryViewToggleBtn">Summary</button>
         <button class="action-btn" id="addTaskBtn">+ Task</button>
         <button class="action-btn" id="resetBtn">Reset</button>
       </div>
@@ -705,6 +797,18 @@
 
   <div class="grid-wrapper">
     <div class="week-grid" id="weekGrid"></div>
+    
+    <!-- Phase 3 UI Target View Element -->
+    <div class="summary-view-pane" id="summaryViewPane">
+      <div class="macro-card">
+        <div class="macro-title">Brand Track Diagnostics</div>
+        <div id="brandMetricsAnchor"></div>
+      </div>
+      <div class="reupload-running-block">
+        <div class="reupload-running-title">Weekly Cumulative Reuploads</div>
+        <div class="reupload-running-count" id="reuploadRunningCount">0</div>
+      </div>
+    </div>
   </div>
 
   <div class="footer-legend">
@@ -814,6 +918,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const CUSTOM_TASKS_KEY = 'enigma_custom_tasks_v6';
   const TASK_NOTES_KEY = 'enigma_task_notes_v1';
 
+  const BRAND_LABELS = { cp: 'CareerPaddy', tratun: 'Tratun', studio: 'Enigma Studio', pray: 'Praying Scripture', meet: 'Meetings' };
+
   function getToday() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -827,6 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentLayoutView = 'week'; 
   let activeDayTab = 'sat'; 
   let alertedTasks = {}; 
+  let summaryLayoutVisible = false;
 
   const detectedTodayStr = getToday();
   const foundTodayObj = baseWeekConfig.find(d => d.date === detectedTodayStr);
@@ -902,14 +1009,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Phase 2: Compute temporary cascading carry-forward projection arrays
   function getComputedDayTasks(day, scheduleContext) {
     if (state[`skip_day_${day.key}`]) return [];
 
     const currentIdx = baseWeekConfig.findIndex(d => d.key === day.key);
     let dayTasksCombined = [...day.tasks];
 
-    // Scan prior days inside this week configuration slice
     for (let i = 0; i < currentIdx; i++) {
       const priorDay = scheduleContext[i];
       if (state[`skip_day_${priorDay.key}`]) continue;
@@ -917,7 +1022,6 @@ document.addEventListener('DOMContentLoaded', () => {
       priorDay.tasks.forEach(t => {
         if (t.taskType === 'production' && !t.isCounter) {
           if (!state[t.id]) {
-            // Project into layout copy with Carry metadata tag appended
             if (!dayTasksCombined.some(existing => existing.id === t.id)) {
               dayTasksCombined.push({ ...t, isCarriedForward: true });
             }
@@ -1014,7 +1118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fullSchedule = buildSchedule();
     let totalUnits = 0, completedUnits = 0;
     fullSchedule.forEach(day => {
-      if (state[`skip_day_${day.key}`]) return; // Omit metrics loops
+      if (state[`skip_day_${day.key}`]) return; 
       const contextualTasks = getComputedDayTasks(day, fullSchedule);
       contextualTasks.forEach(t => {
         totalUnits++;
@@ -1059,7 +1163,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderTabsRow() {
     const row = document.getElementById('dayTabsRow');
-    if (currentLayoutView === 'week') { row.style.display = 'none'; return; }
+    if (currentLayoutView === 'week' || summaryLayoutVisible) { row.style.display = 'none'; return; }
     row.style.display = 'flex'; row.innerHTML = '';
     baseWeekConfig.forEach(d => {
       const btn = document.createElement('button');
@@ -1070,8 +1174,81 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Phase 3 Macro Diagnostic Rendering Computations
+  function executeSummaryRenderAnalytics() {
+    const anchor = document.getElementById('brandMetricsAnchor');
+    anchor.innerHTML = '';
+    
+    const fullSchedule = buildSchedule();
+    let reuploadRunningSum = 0;
+    
+    // Schema baseline storage map initialization
+    const diagnostics = {
+      cp: { total: 0, done: 0 },
+      tratun: { total: 0, done: 0 },
+      studio: { total: 0, done: 0 },
+      pray: { total: 0, done: 0 },
+      meet: { total: 0, done: 0 }
+    };
+
+    fullSchedule.forEach(day => {
+      // Calculate active task states across the entire 7-day spectrum
+      const contextualTasks = [...day.tasks]; // Note: summary looks at the structural volume assigned per brand layout
+      
+      contextualTasks.forEach(t => {
+        if (t.isCounter) {
+          const counterVal = state[t.id] || 0;
+          reuploadRunningSum += counterVal;
+        } else {
+          if (diagnostics[t.brand]) {
+            diagnostics[t.brand].total++;
+            if (state[t.id]) diagnostics[t.brand].done++;
+          }
+        }
+      });
+    });
+
+    // Generate matching theme structural progress components
+    Object.keys(diagnostics).forEach(brandKey => {
+      const metric = diagnostics[brandKey];
+      const percent = metric.total > 0 ? Math.round((metric.done / metric.total) * 100) : 0;
+      
+      const row = document.createElement('div');
+      row.className = 'brand-row-metric';
+      
+      row.innerHTML = `
+        <div class="brand-row-meta">
+          <div class="brand-label-text">
+            <div class="brand-pip" style="margin-top:0; background:var(--${brandKey}); box-shadow: 0 0 6px var(--${brandKey});"></div>
+            ${BRAND_LABELS[brandKey]}
+          </div>
+          <div style="color:var(--muted)">${metric.done}/${metric.total} (${percent}%)</div>
+        </div>
+        <div class="brand-bar-track">
+          <div class="brand-bar-fill" style="width: ${percent}%; background: var(--${brandKey});"></div>
+        </div>
+      `;
+      anchor.appendChild(row);
+    });
+
+    document.getElementById('reuploadRunningCount').textContent = reuploadRunningSum;
+  }
+
   function renderGrid() {
-    const grid = document.getElementById('weekGrid'); grid.innerHTML = '';
+    const grid = document.getElementById('weekGrid'); 
+    const summaryPane = document.getElementById('summaryViewPane');
+    
+    if (summaryLayoutVisible) {
+      grid.style.display = 'none';
+      summaryPane.style.display = 'flex';
+      executeSummaryRenderAnalytics();
+      return;
+    }
+    
+    grid.style.display = 'grid';
+    summaryPane.style.display = 'none';
+    grid.innerHTML = '';
+    
     const today = getToday();
     const fullSchedule = buildSchedule();
     let displaySchedule = [...fullSchedule];
@@ -1085,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if(fullSchedule.length > 0) {
       const firstDay = new Date(fullSchedule[0].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
-      const lastDay = new Date(fullWeek[6].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+      const lastDay = new Date(fullSchedule[6].date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
       document.getElementById('weekRangeDisplay').innerHTML = `${firstDay} – ${lastDay} &nbsp;·&nbsp; ENIGMA`;
     }
 
@@ -1221,8 +1398,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function executeRenderCycles() { renderGrid(); renderTabsRow(); renderStreak(); updateTodayCount(); calculateGlobalVelocity(); }
 
-  document.getElementById('viewLayoutSwitch').addEventListener('change', (e) => { currentLayoutView = e.target.value; executeRenderCycles(); });
+  document.getElementById('viewLayoutSwitch').addEventListener('change', (e) => { 
+    summaryLayoutVisible = false;
+    document.getElementById('summaryViewToggleBtn').classList.remove('active-view-btn');
+    currentLayoutView = e.target.value; 
+    executeRenderCycles(); 
+  });
+  
   document.getElementById('brandFilter').addEventListener('change', (e) => { selectedBrandFilter = e.target.value; renderGrid(); });
+  
+  // Phase 3: Toggle Engine Wiring
+  document.getElementById('summaryViewToggleBtn').addEventListener('click', (e) => {
+    summaryLayoutVisible = !summaryLayoutVisible;
+    e.target.classList.toggle('active-view-btn', summaryLayoutVisible);
+    executeRenderCycles();
+  });
+
   document.getElementById('resetBtn').addEventListener('click', () => {
     if (confirm('Reset weekly tracking operational vectors?')) {
       state = {}; customTasks = []; taskNotes = {}; saveCustomTasks(customTasks); saveTaskNotes();
