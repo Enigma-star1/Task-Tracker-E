@@ -717,7 +717,7 @@
       font-family: inherit;
     }
 
-    /* Fixed visibility overlay mechanics line 438 */
+    /* Injected Dropdown Option Correction Protocol */
     .modal-content select option {
       background: #14101A !important;
       color: #fff !important;
@@ -872,4 +872,123 @@ document.addEventListener('DOMContentLoaded', () => {
       return {
         key: key,
         label: labels[index],
-        date: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')
+        date: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+      };
+    });
+  }
+
+  const baseWeekConfig = getTrackingWeek();
+  
+  const BASE_SCHEDULE_TEMPLATES = {
+    sat: [
+      { id: 'sat_pray',     brand: 'pray',   text: 'Upload 6 videos — YT + Instagram', time: '11am', oneTime: true, taskType: 'production' },
+      { id: 'sat_studio',   brand: 'studio', text: '1 Photoshop design',                time: '1pm', taskType: 'production'  },
+      { id: 'sat_reupload', brand: 'cp',     text: 'Reupload courses — Admin Portal',   time: 'Anytime', isCounter: true, taskType: 'production' },
+    ],
+    sun: [
+      { id: 'sun_blog',      brand: 'cp', text: 'Write Blog post',                   time: 'Night', taskType: 'production'  },
+      { id: 'sun_watermark',brand: 'cp', text: 'Create Watermarked Course video',   time: 'Night', taskType: 'production'  },
+      { id: 'sun_reupload', brand: 'cp', text: 'Reupload courses — Admin Portal',   time: 'Anytime', isCounter: true, taskType: 'production' },
+    ],
+    mon: [
+      { id: 'mon_blog',     brand: 'cp',     text: 'Post Blog — Meta',               time: '9am', taskType: 'time-anchored' },
+      { id: 'mon_yt',       brand: 'cp',     text: 'Post Course — YouTube',          time: '12pm', taskType: 'time-anchored' },
+      { id: 'mon_wm',       brand: 'cp',     text: 'Post Watermarked video — Meta',  time: '12pm', taskType: 'time-anchored' },
+      { id: 'mon_reupload', brand: 'cp',     text: 'Reupload courses — Admin Portal',time: 'Before 6pm', isCounter: true, taskType: 'production' },
+      { id: 'mon_meet',     brand: 'meet',   text: 'CP Meeting',                     time: '6pm', taskType: 'time-anchored' },
+      { id: 'mon_tratun',   brand: 'tratun', text: 'Start design prep',              time: '10:30pm', taskType: 'production' },
+    ],
+    tue: [
+      { id: 'tue_debbie',   brand: 'tratun', text: 'Design thoughts → Mrs. Debbie', time: 'Before 12pm', taskType: 'production' },
+      { id: 'tue_design',   brand: 'tratun', text: 'Finish design',                 time: 'Before 12pm', taskType: 'production' },
+      { id: 'tue_meet',     brand: 'tratun', text: 'Tratun Meeting',                 time: '4pm', taskType: 'time-anchored' },
+      { id: 'tue_video',    brand: 'cp',     text: 'Create Highlight / CP Ally video', time: '10pm', taskType: 'production' },
+      { id: 'tue_reupload', brand: 'cp',     text: 'Reupload courses — Admin Portal',time: 'Anytime', isCounter: true, taskType: 'production' },
+    ],
+    wed: [
+      { id: 'wed_post',     brand: 'cp',   text: 'Post Highlight / CP Ally video', time: '9am', taskType: 'time-anchored' },
+      { id: 'wed_create',   brand: 'cp',   text: 'Create Course video',            time: '12pm+', taskType: 'production' },
+      { id: 'wed_reupload', brand: 'cp',   text: 'Reupload courses — Admin Portal',time: 'Anytime', isCounter: true, taskType: 'production' },
+      { id: 'wed_meet',     brand: 'meet', text: 'Design Team Meeting',            time: '4pm', taskType: 'time-anchored' },
+    ],
+    thu: [
+      { id: 'thu_create',   brand: 'pray', text: 'Create 3 Pray.Scr videos',             time: 'Anytime', taskType: 'production' },
+      { id: 'thu_upload',   brand: 'pray', text: 'Upload 2 videos — YT + Instagram',     time: 'Night', taskType: 'production' },
+      { id: 'thu_reupload', brand: 'cp',   text: 'Reupload courses — Admin Portal',      time: 'Anytime', isCounter: true, taskType: 'production' },
+    ],
+    fri: [
+      { id: 'fri_wm',       brand: 'cp',   text: 'Create + Post Watermarked Course — Meta', time: 'Before 12pm', taskType: 'production' },
+      { id: 'fri_reels',    brand: 'cp',   text: 'Create and Post Reels',                    time: 'Before 12pm', taskType: 'production' },
+      { id: 'fri_reupload', brand: 'cp',   text: 'Reupload courses — Admin Portal',          time: 'Anytime', isCounter: true, taskType: 'production' },
+      { id: 'fri_meet',     brand: 'meet', text: 'CP Meeting',                               time: '6pm', taskType: 'time-anchored' },
+    ]
+  };
+
+  const CUSTOM_TASKS_KEY = 'enigma_custom_tasks_v6';
+  const TASK_NOTES_KEY = 'enigma_task_notes_v1';
+  const MEETING_OFFSET_KEY = 'enigma_meeting_offset_v1';
+
+  const BRAND_LABELS = { cp: 'CareerPaddy', tratun: 'Tratun', studio: 'Enigma Studio', pray: 'Praying Scripture', meet: 'Meetings' };
+
+  function getToday() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  let state = {}; 
+  let customTasks = (() => { try { return JSON.parse(localStorage.getItem(CUSTOM_TASKS_KEY)) || []; } catch { return []; } })();
+  let taskNotes = (() => { try { return JSON.parse(localStorage.getItem(TASK_NOTES_KEY)) || {}; } catch { return {}; } })();
+  let currentMeetingOffset = (() => { try { return parseInt(localStorage.getItem(MEETING_OFFSET_KEY), 10) || 20; } catch { return 20; } })();
+  
+  let selectedBrandFilter = 'all';
+  let currentLayoutView = 'week'; 
+  let activeDayTab = 'sat'; 
+  let alertedTasks = {}; 
+  let summaryLayoutVisible = false;
+
+  document.getElementById('meetingOffsetConfig').value = currentMeetingOffset.toString();
+
+  const detectedTodayStr = getToday();
+  const foundTodayObj = baseWeekConfig.find(d => d.date === detectedTodayStr);
+  if (foundTodayObj) activeDayTab = foundTodayObj.key;
+
+  function saveCustomTasks(t) { localStorage.setItem(CUSTOM_TASKS_KEY, JSON.stringify(t)); }
+  function saveTaskNotes() { localStorage.setItem(TASK_NOTES_KEY, JSON.stringify(taskNotes)); }
+
+  async function fetchCloudState() {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?select=*`, {
+        method: 'GET',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      state = {};
+      data.forEach(row => {
+        if (row.counter_val !== 0) {
+          state[row.id] = row.counter_val;
+        } else {
+          state[row.id] = row.is_done;
+        }
+      });
+      executeRenderCycles();
+    } catch(e) { console.error("Cloud engine pull failure context: ", e); }
+  }
+
+  async function syncToCloud(taskId, val) {
+    const payload = {
+      id: taskId,
+      is_done: typeof val === 'boolean' ? val : false,
+      counter_val: typeof val === 'number' ? val : 0,
+      updated_at: new Date().toISOString()
+    };
+
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/tracker_state`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization
