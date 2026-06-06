@@ -593,7 +593,6 @@
 
     .c-btn.active { background: var(--accent-purple); border-color: var(--accent-lavender); color: #fff; }
 
-    /* Phase 3: Weekly Summary Dashboard System Layout Styles */
     .summary-view-pane {
       display: none;
       max-width: 800px;
@@ -765,6 +764,11 @@
           <option value="pray">Praying Scripture</option>
           <option value="meet">Meetings</option>
         </select>
+        <select class="select-dropdown" id="meetingOffsetConfig">
+          <option value="20">Meet Alert: 20m early</option>
+          <option value="15">Meet Alert: 15m early</option>
+          <option value="30">Meet Alert: 30m early</option>
+        </select>
         <button class="action-btn" id="summaryViewToggleBtn">Summary</button>
         <button class="action-btn" id="addTaskBtn">+ Task</button>
         <button class="action-btn" id="resetBtn">Reset</button>
@@ -798,7 +802,6 @@
   <div class="grid-wrapper">
     <div class="week-grid" id="weekGrid"></div>
     
-    <!-- Phase 3 UI Target View Element -->
     <div class="summary-view-pane" id="summaryViewPane">
       <div class="macro-card">
         <div class="macro-title">Brand Track Diagnostics</div>
@@ -917,6 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const CUSTOM_TASKS_KEY = 'enigma_custom_tasks_v6';
   const TASK_NOTES_KEY = 'enigma_task_notes_v1';
+  const MEETING_OFFSET_KEY = 'enigma_meeting_offset_v1';
 
   const BRAND_LABELS = { cp: 'CareerPaddy', tratun: 'Tratun', studio: 'Enigma Studio', pray: 'Praying Scripture', meet: 'Meetings' };
 
@@ -928,12 +932,15 @@ document.addEventListener('DOMContentLoaded', () => {
   let state = {}; 
   let customTasks = (() => { try { return JSON.parse(localStorage.getItem(CUSTOM_TASKS_KEY)) || []; } catch { return []; } })();
   let taskNotes = (() => { try { return JSON.parse(localStorage.getItem(TASK_NOTES_KEY)) || {}; } catch { return {}; } })();
+  let currentMeetingOffset = (() => { try { return parseInt(localStorage.getItem(MEETING_OFFSET_KEY), 10) || 20; } catch { return 20; } })();
   
   let selectedBrandFilter = 'all';
   let currentLayoutView = 'week'; 
   let activeDayTab = 'sat'; 
   let alertedTasks = {}; 
   let summaryLayoutVisible = false;
+
+  document.getElementById('meetingOffsetConfig').value = currentMeetingOffset.toString();
 
   const detectedTodayStr = getToday();
   const foundTodayObj = baseWeekConfig.find(d => d.date === detectedTodayStr);
@@ -1062,6 +1069,24 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;
   }
 
+  // Phase 4 Math Optimization Logic Engine to execute early calculation matrices
+  function calculateMeetingAlarmTargetTime(baseTimeStr, offsetMinutes) {
+    const rawParsedTime = parseTimeString(baseTimeStr);
+    if (!rawParsedTime) return null;
+    
+    let [hrs, mins] = rawParsedTime.split(':').map(Number);
+    let cumulativeMinutes = (hrs * 60) + mins;
+    
+    // Apply offset buffer
+    cumulativeMinutes -= offsetMinutes;
+    if (cumulativeMinutes < 0) cumulativeMinutes += 1440; // Clock roll adjustments
+    
+    const targetHrs = Math.floor(cumulativeMinutes / 60);
+    const targetMins = cumulativeMinutes % 60;
+    
+    return `${String(targetHrs).padStart(2,'0')}:${String(targetMins).padStart(2,'0')}`;
+  }
+
   function runBackgroundAlarmDaemon() {
     setInterval(() => {
       const now = new Date();
@@ -1079,15 +1104,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const contextualTasks = getComputedDayTasks(targetDay, fullSchedule);
       contextualTasks.forEach(task => {
         if (task.isCounter || state[task.id]) return;
-        const taskTargetTime = parseTimeString(task.time);
-        if (!taskTargetTime) return;
+        
+        let targetExecutionTime = null;
+        let alertMessageBody = `[${task.time}] ${task.text}`;
+        
+        // Phase 4: Branched Execution Flow Logic for Meetings vs Standard Production Alerts
+        if (task.brand === 'meet') {
+          targetExecutionTime = calculateMeetingAlarmTargetTime(task.time, currentMeetingOffset);
+          alertMessageBody = `MEETING KICKOFF IN ${currentMeetingOffset} MINS: ${task.text}`;
+        } else {
+          targetExecutionTime = parseTimeString(task.time);
+        }
+        
+        if (!targetExecutionTime) return;
 
-        if (taskTargetTime === currentTimeStr) {
+        if (targetExecutionTime === currentTimeStr) {
           if (!alertedTasks[task.id]) {
             alertedTasks[task.id] = true;
             playAlertChime();
             if (Notification.permission === 'granted') {
-              new Notification(`ENIGMA — Task Alert`, { body: `[${task.time}] ${task.text}` });
+              new Notification(`ENIGMA — High-Priority Alert`, { body: alertMessageBody });
             }
           }
         }
@@ -1174,15 +1210,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Phase 3 Macro Diagnostic Rendering Computations
   function executeSummaryRenderAnalytics() {
     const anchor = document.getElementById('brandMetricsAnchor');
     anchor.innerHTML = '';
-    
     const fullSchedule = buildSchedule();
     let reuploadRunningSum = 0;
     
-    // Schema baseline storage map initialization
     const diagnostics = {
       cp: { total: 0, done: 0 },
       tratun: { total: 0, done: 0 },
@@ -1192,13 +1225,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     fullSchedule.forEach(day => {
-      // Calculate active task states across the entire 7-day spectrum
-      const contextualTasks = [...day.tasks]; // Note: summary looks at the structural volume assigned per brand layout
-      
+      const contextualTasks = [...day.tasks];
       contextualTasks.forEach(t => {
         if (t.isCounter) {
-          const counterVal = state[t.id] || 0;
-          reuploadRunningSum += counterVal;
+          reuploadRunningSum += (state[t.id] || 0);
         } else {
           if (diagnostics[t.brand]) {
             diagnostics[t.brand].total++;
@@ -1208,14 +1238,11 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Generate matching theme structural progress components
     Object.keys(diagnostics).forEach(brandKey => {
       const metric = diagnostics[brandKey];
       const percent = metric.total > 0 ? Math.round((metric.done / metric.total) * 100) : 0;
-      
       const row = document.createElement('div');
       row.className = 'brand-row-metric';
-      
       row.innerHTML = `
         <div class="brand-row-meta">
           <div class="brand-label-text">
@@ -1230,7 +1257,6 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       anchor.appendChild(row);
     });
-
     document.getElementById('reuploadRunningCount').textContent = reuploadRunningSum;
   }
 
@@ -1407,7 +1433,13 @@ document.addEventListener('DOMContentLoaded', () => {
   
   document.getElementById('brandFilter').addEventListener('change', (e) => { selectedBrandFilter = e.target.value; renderGrid(); });
   
-  // Phase 3: Toggle Engine Wiring
+  // Phase 4: Handle meeting configuration offset changes
+  document.getElementById('meetingOffsetConfig').addEventListener('change', (e) => {
+    currentMeetingOffset = parseInt(e.target.value, 10);
+    localStorage.setItem(MEETING_OFFSET_KEY, currentMeetingOffset.toString());
+    alertedTasks = {}; // Flush tracking register to allow offset recalculation
+  });
+
   document.getElementById('summaryViewToggleBtn').addEventListener('click', (e) => {
     summaryLayoutVisible = !summaryLayoutVisible;
     e.target.classList.toggle('active-view-btn', summaryLayoutVisible);
