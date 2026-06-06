@@ -717,7 +717,7 @@
       font-family: inherit;
     }
 
-    /* Target overlay fix rule integration */
+    /* Override system-level transparency bug */
     .modal-content select option {
       background: #14101A !important;
       color: #fff !important;
@@ -1075,7 +1075,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;
   }
 
-  // Phase 4 Math Optimization Logic Engine to execute early calculation matrices
   function calculateMeetingAlarmTargetTime(baseTimeStr, offsetMinutes) {
     const rawParsedTime = parseTimeString(baseTimeStr);
     if (!rawParsedTime) return null;
@@ -1083,9 +1082,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let [hrs, mins] = rawParsedTime.split(':').map(Number);
     let cumulativeMinutes = (hrs * 60) + mins;
     
-    // Apply offset buffer
     cumulativeMinutes -= offsetMinutes;
-    if (cumulativeMinutes < 0) cumulativeMinutes += 1440; // Clock roll adjustments
+    if (cumulativeMinutes < 0) cumulativeMinutes += 1440; 
     
     const targetHrs = Math.floor(cumulativeMinutes / 60);
     const targetMins = cumulativeMinutes % 60;
@@ -1114,7 +1112,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let targetExecutionTime = null;
         let alertMessageBody = `[${task.time}] ${task.text}`;
         
-        // Phase 4: Branched Execution Flow Logic for Meetings vs Standard Production Alerts
         if (task.brand === 'meet') {
           targetExecutionTime = calculateMeetingAlarmTargetTime(task.time, currentMeetingOffset);
           alertMessageBody = `MEETING KICKOFF IN ${currentMeetingOffset} MINS: ${task.text}`;
@@ -1281,7 +1278,8 @@ document.addEventListener('DOMContentLoaded', () => {
     summaryPane.style.display = 'none';
     grid.innerHTML = '';
     
-    const today = getToday(); FullSchedule = buildSchedule();
+    const today = getToday(); 
+    const fullSchedule = buildSchedule();
     let displaySchedule = [...fullSchedule];
 
     if (currentLayoutView === 'day') {
