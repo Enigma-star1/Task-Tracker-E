@@ -106,7 +106,7 @@
     }
 
     .meta-time-block { display: flex; align-items: center; gap: 24px; }
-    .clock-display { text-align: right; }
+    .clock-display { text-align: right; cursor: pointer; }
 
     .clock-time {
       font-family: 'Barlow Condensed', sans-serif;
@@ -192,8 +192,8 @@
     .day-col.is-today .day-name { color: #fff; }
     .day-col.is-today .day-date { color: var(--accent-gold); }
 
-    .day-tasks { padding: 14px 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
-
+    .day-tasks { padding: 14px 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 80px; }
+    .empty-day-msg { display: flex; align-items: center; justify-content: center; flex: 1; font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; opacity: 0.5; min-height: 60px; }
     .skipped-msg { display: flex; align-items: center; justify-content: center; flex: 1; font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
 
     .task-item { padding: 12px 14px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s ease; user-select: none; }
@@ -220,15 +220,7 @@
     .one-time-tag { display: inline-block; font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--success-green); background: rgba(16,185,129,0.12); padding: 2px 6px; border-radius: 3px; }
     .carry-tag    { display: inline-block; font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--accent-gold);   background: rgba(156,104,35,0.12);  padding: 2px 6px; border-radius: 3px; }
 
-    .delete-task-btn {
-      color: var(--muted);
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 800;
-      line-height: 1;
-      padding: 0 4px;
-      transition: color 0.15s;
-    }
+    .delete-task-btn { color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 800; line-height: 1; padding: 0 4px; transition: color 0.15s; }
     .delete-task-btn:hover { color: var(--action-pink); }
 
     .task-notes-drawer { max-height: 0; overflow: hidden; transition: max-height 0.22s cubic-bezier(0.4,0,0.2,1); }
@@ -236,16 +228,6 @@
 
     .task-notes-field { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 4px; color: var(--accent-lavender); font-family: inherit; font-size: 11px; padding: 6px 8px; margin-top: 8px; outline: none; resize: none; }
     .task-notes-field:focus { border-color: var(--accent-purple); }
-
-    .counter-widget { border: 1px solid var(--border-light); border-radius: 6px; padding: 10px 12px; background: rgba(109,53,118,0.05); }
-    .counter-head { font-size: 10px; color: var(--text); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; }
-    .counter-head span { color: var(--accent-gold); font-weight: 600; }
-    .counter-time { font-size: 9px; color: var(--muted); margin-bottom: 8px; }
-    .counter-btns { display: flex; gap: 6px; }
-
-    .c-btn { flex: 1; height: 28px; border: 1.5px solid var(--border-light); background: transparent; color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 700; border-radius: 4px; cursor: pointer; transition: all 0.12s; }
-    .c-btn:hover { border-color: var(--accent-lavender); color: var(--text); }
-    .c-btn.active { background: var(--accent-purple); border-color: var(--accent-lavender); color: #fff; }
 
     .summary-view-pane { display: none; max-width: 800px; width: 100%; margin: 40px auto; padding: 0 20px; flex-direction: column; gap: 24px; }
     .macro-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; }
@@ -256,15 +238,14 @@
     .brand-bar-track { width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
     .brand-bar-fill { height: 100%; width: 0%; transition: width 0.5s ease; border-radius: 4px; }
 
-    .reupload-running-block { display: flex; align-items: center; justify-content: space-between; background: rgba(255,107,53,0.05); border: 1px dashed var(--accent-gold); padding: 16px; border-radius: 6px; }
-    .reupload-running-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text); }
-    .reupload-running-count { font-family: 'Barlow Condensed', sans-serif; font-size: 36px; font-weight: 800; color: var(--accent-gold); }
-
     .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(7,7,15,0.85); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 1000; }
     .modal-content { background: #14101A; border: 1px solid var(--border-light); padding: 28px; border-radius: 8px; width: 340px; display: flex; flex-direction: column; gap: 14px; }
     .modal-content h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; }
     .modal-content input, .modal-content select { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 5px; padding: 10px; color: #fff; font-family: inherit; font-size: 11px; outline: none; }
     .modal-content select option { background: #14101A; color: #fff; }
+
+    .confirm-modal-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .confirm-modal-actions { display: flex; gap: 10px; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -287,10 +268,9 @@
         </select>
         <button class="action-btn" id="summaryViewToggleBtn">Summary</button>
         <button class="action-btn" id="addTaskBtn">+ Task</button>
-        <button class="action-btn" id="resetBtn">Reset</button>
       </div>
       <div class="meta-time-block">
-        <div class="clock-display">
+        <div class="clock-display" id="clockTrigger">
           <div class="clock-time" id="liveClockDisplay">00:00:00</div>
           <div class="clock-label">Local Time</div>
         </div>
@@ -322,10 +302,6 @@
         <div class="macro-title">Weekly Metrics Diagnostic</div>
         <div id="brandMetricsAnchor"></div>
       </div>
-      <div class="reupload-running-block">
-        <div class="reupload-running-title">Weekly Cumulative Reuploads</div>
-        <div class="reupload-running-count" id="reuploadRunningCount">0</div>
-      </div>
     </div>
   </div>
 
@@ -341,11 +317,22 @@
         <option value="true">One-Time Task</option>
         <option value="false">Recurring Task</option>
       </select>
-      <input type="text" id="modText" placeholder="Task description">
-      <input type="text" id="modTime" placeholder="Time (e.g. 4pm, 11am)">
+      <input type="text" id="modText" name="deraTaskDescription" autocomplete="off" placeholder="Task description">
+      <input type="text" id="modTime" name="deraTaskTime" autocomplete="off" placeholder="Time (e.g. 4pm, 11am)">
       <div style="display:flex;gap:10px;margin-top:10px;">
         <button class="action-btn" id="modCancel" style="flex:1;">Cancel</button>
         <button class="action-btn" id="modSave" style="flex:1;background:var(--accent-purple)">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="confirmModal">
+    <div class="modal-content">
+      <h3 id="confirmModalTitle">CONFIRM</h3>
+      <div class="confirm-modal-text" id="confirmModalText"></div>
+      <div class="confirm-modal-actions">
+        <button class="action-btn" id="confirmModalCancel" style="flex:1;">Cancel</button>
+        <button class="action-btn" id="confirmModalOk" style="flex:1;background:var(--action-pink);border-color:var(--action-pink);">Confirm</button>
       </div>
     </div>
   </div>
@@ -357,6 +344,45 @@ document.addEventListener('DOMContentLoaded', () => {
   const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZXdwaXVqZHFucXN3ZGJyaWd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2ODExMzAsImV4cCI6MjA5NjI1NzEzMH0.VdrJCmvGZzc-_GJF6m9drxdgsdeb5a1eb9AOIRxTWYQ";
 
   if (Notification.permission === 'default') Notification.requestPermission();
+
+  let audioContextInstance = null;
+  let audioUnlocked = false;
+
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    try {
+      audioContextInstance = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioContextInstance.state === 'suspended') {
+        audioContextInstance.resume();
+      }
+      audioUnlocked = true;
+    } catch(e) { console.warn('AudioContext init failed:', e); }
+  }
+
+  document.addEventListener('click', unlockAudio, { once: true });
+  document.addEventListener('keydown', unlockAudio, { once: true });
+  document.addEventListener('touchstart', unlockAudio, { once: true });
+
+  function showConfirm(title, message) {
+    return new Promise((resolve) => {
+      const modal  = document.getElementById('confirmModal');
+      document.getElementById('confirmModalTitle').textContent = title;
+      document.getElementById('confirmModalText').textContent  = message;
+      modal.style.display = 'flex';
+      const okBtn     = document.getElementById('confirmModalOk');
+      const cancelBtn = document.getElementById('confirmModalCancel');
+      function cleanup(result) {
+        modal.style.display = 'none';
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        resolve(result);
+      }
+      function onOk()     { cleanup(true);  }
+      function onCancel() { cleanup(false); }
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+    });
+  }
 
   function getTrackingWeek() {
     const sat = new Date('2026-06-06T12:00:00');
@@ -373,45 +399,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const BASE_SCHEDULE_TEMPLATES = {
     sat: [
       { id:'sat_pray',   text:'Upload 6 videos — YT + Instagram', time:'11am',       oneTime:true,  taskType:'production' },
-      { id:'sat_studio', text:'1 Photoshop design',                 time:'1pm',                       taskType:'production' },
-      { id:'sat_reupload', text:'Reupload courses — Admin Portal',   time:'Anytime',  isCounter:true, taskType:'production' },
+      { id:'sat_studio', text:'1 Photoshop design',                 time:'1pm',                       taskType:'production' }
     ],
     sun: [
       { id:'sun_blog',       text:'Write Blog post',                 time:'Night',                    taskType:'production' },
-      { id:'sun_watermark',  text:'Create Watermarked Course video', time:'Night',                    taskType:'production' },
-      { id:'sun_reupload',   text:'Reupload courses — Admin Portal', time:'Anytime', isCounter:true,  taskType:'production' },
+      { id:'sun_watermark',  text:'Create Watermarked Course video', time:'Night',                    taskType:'production' }
     ],
     mon: [
       { id:'mon_blog',     text:'Post Blog — Meta',               time:'9am',         taskType:'time-anchored' },
       { id:'mon_yt',       text:'Post Course — YouTube',          time:'12pm',        taskType:'time-anchored' },
       { id:'mon_wm',       text:'Post Watermarked video — Meta',  time:'12pm',        taskType:'time-anchored' },
-      { id:'mon_reupload', text:'Reupload courses — Admin Portal',time:'Before 6pm',  isCounter:true, taskType:'production' },
-      { id:'mon_meet',     text:'Core Alignment Meeting',                      time:'6pm',         taskType:'time-anchored' },
-      { id:'mon_tratun',   text:'Start design prep',              time:'10:30pm',     taskType:'production' },
+      { id:'mon_meet',     text:'Core Alignment Meeting',         time:'6pm',         taskType:'time-anchored' },
+      { id:'mon_tratun',   text:'Start design prep',              time:'10:30pm',     taskType:'production' }
     ],
     tue: [
       { id:'tue_debbie',   text:'Design thoughts → Operations',    time:'Before 12pm', taskType:'production' },
       { id:'tue_design',   text:'Finish design',                    time:'Before 12pm', taskType:'production' },
-      { id:'tue_meet',     text:'Status Update Meeting',                    time:'4pm',         taskType:'time-anchored' },
-      { id:'tue_video',    text:'Create Highlight / Core Ally video', time:'10pm',        taskType:'production' },
-      { id:'tue_reupload', text:'Reupload courses — Admin Portal',  time:'Anytime',     isCounter:true, taskType:'production' },
+      { id:'tue_meet',     text:'Status Update Meeting',            time:'4pm',         taskType:'time-anchored' },
+      { id:'tue_video',    text:'Create Highlight / Core Ally video', time:'10pm',        taskType:'production' }
     ],
     wed: [
       { id:'wed_post',     text:'Post Highlight / Core Ally video', time:'9am',     taskType:'time-anchored' },
       { id:'wed_create',   text:'Create Course video',            time:'12pm+',   taskType:'production' },
-      { id:'wed_reupload', text:'Reupload courses — Admin Portal',time:'Anytime', isCounter:true, taskType:'production' },
-      { id:'wed_meet',     text:'Design Team Meeting',            time:'4pm',     taskType:'time-anchored' },
+      { id:'wed_meet',     text:'Design Team Meeting',            time:'4pm',     taskType:'time-anchored' }
     ],
     thu: [
-      { id:'thu_create',   text:'Create 3 Creative Media videos',         time:'Anytime', taskType:'production' },
-      { id:'thu_upload',   text:'Upload 2 videos — YT + Instagram', time:'Night',   taskType:'production' },
-      { id:'thu_reupload', text:'Reupload courses — Admin Portal',  time:'Anytime', isCounter:true, taskType:'production' },
+      { id:'thu_create',   text:'Create 3 Creative Media videos', time:'Anytime', taskType:'production' },
+      { id:'thu_upload',   text:'Upload 2 videos — YT + Instagram', time:'Night',   taskType:'production' }
     ],
     fri: [
       { id:'fri_wm',       text:'Create + Post Watermarked Course — Meta', time:'Before 12pm', taskType:'production' },
       { id:'fri_reels',    text:'Create and Post Reels',                    time:'Before 12pm', taskType:'production' },
-      { id:'fri_reupload', text:'Reupload courses — Admin Portal',          time:'Anytime',     isCounter:true, taskType:'production' },
-      { id:'fri_meet',     text:'Wrap-up Meeting',                               time:'6pm',         taskType:'time-anchored' },
+      { id:'fri_meet',     text:'Wrap-up Meeting',                          time:'6pm',         taskType:'time-anchored' }
     ]
   };
 
@@ -443,7 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveCustomTasks(t) { localStorage.setItem(CUSTOM_TASKS_KEY, JSON.stringify(t)); }
   function saveTaskNotes()    { localStorage.setItem(TASK_NOTES_KEY,    JSON.stringify(taskNotes)); }
 
-  // ── SUPABASE ───────────────────────────────────────────────────────────────
   async function fetchCloudState() {
     try {
       const res  = await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?select=*`, {
@@ -460,6 +478,16 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
       }
+      
+      if (state['cloud_serialized_dera_tasks_v6']) {
+        try {
+          const parsedCloud = JSON.parse(state['cloud_serialized_dera_tasks_v6']);
+          if (Array.isArray(parsedCloud)) {
+            customTasks = parsedCloud;
+            saveCustomTasks(customTasks);
+          }
+        } catch(err) { console.error("Dera tasks string parse error", err); }
+      }
     } catch(e) {
       console.error('Cloud pull error:', e);
     } finally {
@@ -472,6 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
       id:          taskId,
       is_done:     typeof val === 'boolean' ? val : false,
       counter_val: typeof val === 'number'  ? val : null,
+      text_val:    typeof val === 'string'  ? val : null,
       updated_at:  new Date().toISOString()
     };
     try {
@@ -483,16 +512,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) { console.error('Cloud write error:', e); }
   }
 
-  async function clearCloudState() {
-    try {
-      await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?updated_at=not.is.null`, {
-        method:  'DELETE',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' }
-      });
-    } catch(e) { console.error('Cloud clear error:', e); }
+  async function syncCustomTasksToCloud() {
+    const serializedString = JSON.stringify(customTasks);
+    await syncToCloud('cloud_serialized_dera_tasks_v6', serializedString);
   }
 
-  // ── SCHEDULE ───────────────────────────────────────────────────────────────
   function buildSchedule() {
     return baseWeekConfig.map(day => ({
       ...day,
@@ -505,7 +529,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentIdx = baseWeekConfig.findIndex(d => d.key === day.key);
     let combined = [...day.tasks];
     
-    // Filter out locally deleted template components configuration tracking vectors
     combined = combined.filter(t => !state[`deleted_template_${t.id}`]);
 
     for (let i = 0; i < currentIdx; i++) {
@@ -513,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (state[`skip_day_${prior.key}`]) continue;
       prior.tasks.forEach(t => {
         if (state[`deleted_template_${t.id}`]) return;
-        if (t.taskType === 'production' && !t.isCounter && !state[t.id]) {
+        if (t.taskType === 'production' && !state[t.id]) {
           if (!combined.some(ex => ex.id === t.id)) combined.push({ ...t, isCarriedForward: true });
         }
       });
@@ -521,19 +544,18 @@ document.addEventListener('DOMContentLoaded', () => {
     return combined;
   }
 
-  // ── ALARM ──────────────────────────────────────────────────────────────────
   function playAlertChime() {
+    if (!audioUnlocked || !audioContextInstance) return;
     try {
-      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
+      const osc  = audioContextInstance.createOscillator();
+      const gain = audioContextInstance.createGain();
+      osc.connect(gain); gain.connect(audioContextInstance.destination);
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-      osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.15);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-      osc.start(); osc.stop(ctx.currentTime + 0.4);
+      osc.frequency.setValueAtTime(587.33, audioContextInstance.currentTime);
+      osc.frequency.setValueAtTime(880.00, audioContextInstance.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.3, audioContextInstance.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioContextInstance.currentTime + 0.4);
+      osc.start(); osc.stop(audioContextInstance.currentTime + 0.4);
     } catch(e) { console.log(e); }
   }
 
@@ -574,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!todayDay || state[`skip_day_${todayDay.key}`]) return;
 
       getComputedDayTasks(todayDay, fs).forEach(task => {
-        if (task.isCounter || state[task.id]) return;
+        if (state[task.id]) return;
         let target, msg;
         if (task.id.includes('meet')) {
           target = calculateMeetingAlarmTime(task.time, currentMeetingOffset);
@@ -591,15 +613,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1000);
   }
 
-  // ── METRICS ────────────────────────────────────────────────────────────────
   function getDayMetrics(day, fullSchedule) {
     if (state[`skip_day_${day.key}`]) return { total:0, done:0, percentage:0, isSkipped:true };
     const tasks = getComputedDayTasks(day, fullSchedule);
     if (!tasks.length) return { total:0, done:0, percentage:0, isSkipped:false };
     let done = 0;
     tasks.forEach(t => {
-      if (t.isCounter) { if ((state[t.id] || 0) > 0) done++; }
-      else             { if (state[t.id]) done++; }
+      if (state[t.id]) done++;
     });
     return { total:tasks.length, done, percentage:Math.round((done/tasks.length)*100), isSkipped:false };
   }
@@ -617,14 +637,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (state[`skip_day_${day.key}`]) return;
       getComputedDayTasks(day, fs).forEach(t => {
         total++;
-        if (t.isCounter) { if ((state[t.id]||0) > 0) done++; }
-        else             { if (state[t.id]) done++; }
+        if (state[t.id]) done++;
       });
     });
     document.getElementById('velocityFill').style.width = `${total > 0 ? (done/total)*100 : 0}%`;
   }
 
-  // ── RENDER ─────────────────────────────────────────────────────────────────
   function renderStreak() {
     const el = document.getElementById('streakDots'); el.innerHTML = '';
     const today = getToday(); const fs = buildSchedule();
@@ -668,18 +686,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function executeSummaryRenderAnalytics() {
     const anchor = document.getElementById('brandMetricsAnchor'); anchor.innerHTML = '';
-    const fs = buildSchedule(); let reuploadSum = 0;
+    const fs = buildSchedule();
     let totalNormalTasks = 0;
     let completedNormalTasks = 0;
 
     fs.forEach(day => {
       day.tasks.forEach(t => {
         if (state[`deleted_template_${t.id}`]) return;
-        if (t.isCounter) { reuploadSum += (state[t.id]||0); }
-        else {
-          totalNormalTasks++;
-          if (state[t.id]) completedNormalTasks++;
-        }
+        totalNormalTasks++;
+        if (state[t.id]) completedNormalTasks++;
       });
     });
 
@@ -695,8 +710,6 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="brand-bar-track"><div class="brand-bar-fill" style="width:${pct}%;background:var(--accent-purple)"></div></div>`;
     anchor.appendChild(row);
-
-    document.getElementById('reuploadRunningCount').textContent = reuploadSum;
   }
 
   function renderGrid() {
@@ -746,10 +759,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const skipLink = document.createElement('a'); skipLink.className = 'skip-toggle-link';
       skipLink.textContent = isSkipped ? '[Track]' : '[Skip]';
-      skipLink.addEventListener('click', (e) => {
+      skipLink.addEventListener('click', async (e) => {
         e.stopPropagation();
         const k = `skip_day_${day.key}`; state[k] = !state[k];
-        syncToCloud(k, state[k]); executeRenderCycles();
+        await syncToCloud(k, state[k]); executeRenderCycles();
       });
 
       dayControls.appendChild(completionEl); dayControls.appendChild(skipLink);
@@ -766,23 +779,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const msg = document.createElement('div'); msg.className = 'skipped-msg'; msg.textContent = 'Day Allocation Skipped';
         tasksEl.appendChild(msg);
       } else {
-        getComputedDayTasks(day, fullSchedule).forEach(task => {
+        const computedTasks = getComputedDayTasks(day, fullSchedule);
 
-          if (task.isCounter) {
-            const widget = document.createElement('div'); widget.className = 'counter-widget';
-            const cHead = document.createElement('div'); cHead.className = 'counter-head'; cHead.innerHTML = `Reupload <span>Admin</span>`;
-            const cTime = document.createElement('div'); cTime.className = 'counter-time'; cTime.textContent = task.time;
-            const btns  = document.createElement('div'); btns.className = 'counter-btns';
-            const curr  = typeof state[task.id] === 'number' ? state[task.id] : 0;
-            [0,1,2].forEach(n => {
-              const btn = document.createElement('button');
-              btn.className = 'c-btn' + (curr === n ? ' active' : ''); btn.textContent = n;
-              btn.addEventListener('click', (e) => { e.stopPropagation(); state[task.id] = n; syncToCloud(task.id, n); executeRenderCycles(); });
-              btns.appendChild(btn);
-            });
-            widget.appendChild(cHead); widget.appendChild(cTime); widget.appendChild(btns); tasksEl.appendChild(widget);
+        if (computedTasks.length === 0) {
+          const emptyMsg = document.createElement('div');
+          emptyMsg.className = 'empty-day-msg';
+          emptyMsg.textContent = 'No tasks scheduled';
+          tasksEl.appendChild(emptyMsg);
+        } else {
+          computedTasks.forEach(task => {
 
-          } else {
             const item = document.createElement('div');
             item.className = `task-item${state[task.id] ? ' done' : ''}${task.isCarriedForward ? ' carry-forward-derived' : ''}`;
 
@@ -813,17 +819,18 @@ document.addEventListener('DOMContentLoaded', () => {
             taskLeft.appendChild(check); taskLeft.appendChild(content);
             row.appendChild(taskLeft);
 
-            // Universal Deletion Mechanism enabled for all tasks
             const delBtn = document.createElement('div');
             delBtn.className = 'delete-task-btn';
             delBtn.textContent = '×';
-            delBtn.addEventListener('click', (e) => {
+            delBtn.addEventListener('click', async (e) => {
               e.stopPropagation();
-              if (confirm('Delete this task permanently?')) {
+              const confirmed = await showConfirm('DELETE TASK', 'Permanently delete this task? This cannot be undone.');
+              if (confirmed) {
                 customTasks = customTasks.filter(t => t.id !== task.id);
                 saveCustomTasks(customTasks);
                 state[`deleted_template_${task.id}`] = true;
-                syncToCloud(`deleted_template_${task.id}`, true);
+                await syncCustomTasksToCloud();
+                await syncToCloud(`deleted_template_${task.id}`, true);
                 executeRenderCycles();
               }
             });
@@ -831,18 +838,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             item.appendChild(row);
 
-            item.addEventListener('click', (e) => {
+            item.addEventListener('click', async (e) => {
               if (e.target === notesInput || e.target.classList.contains('delete-task-btn')) return;
               if (e.target.closest('.task-check') || state[task.id]) {
-                state[task.id] = !state[task.id]; syncToCloud(task.id, state[task.id]); executeRenderCycles();
+                state[task.id] = !state[task.id]; await syncToCloud(task.id, state[task.id]); executeRenderCycles();
               } else {
                 document.querySelectorAll('.task-notes-drawer').forEach(d => { if (d !== drawer) d.classList.remove('open'); });
                 drawer.classList.toggle('open');
               }
             });
             tasksEl.appendChild(item);
-          }
-        });
+          });
+        }
       }
       col.appendChild(tasksEl); grid.appendChild(col);
     });
@@ -850,7 +857,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function executeRenderCycles() { renderGrid(); renderTabsRow(); renderStreak(); updateTodayCount(); calculateGlobalVelocity(); }
 
-  // ── EVENTS ─────────────────────────────────────────────────────────────────
   document.getElementById('viewLayoutSwitch').addEventListener('change', (e) => {
     summaryLayoutVisible = false;
     document.getElementById('summaryViewToggleBtn').classList.remove('active-view-btn');
@@ -868,22 +874,17 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.classList.toggle('active-view-btn', summaryLayoutVisible); executeRenderCycles();
   });
 
-  document.getElementById('resetBtn').addEventListener('click', () => {
-    if (confirm('Reset weekly tracking operational vectors for Dera?')) {
-      state = {}; customTasks = []; taskNotes = {};
-      saveCustomTasks(customTasks); saveTaskNotes(); clearCloudState(); executeRenderCycles();
-    }
-  });
-
   const modal = document.getElementById('taskModal');
   document.getElementById('addTaskBtn').addEventListener('click', () => {
     const daySelect = document.getElementById('modDay'); daySelect.innerHTML = '';
     baseWeekConfig.forEach(d => { daySelect.innerHTML += `<option value="${d.key}">${d.label}</option>`; });
+    daySelect.value = activeDayTab;
     modal.style.display = 'flex';
   });
   document.getElementById('modCancel').addEventListener('click', () => modal.style.display = 'none');
-  document.getElementById('modSave').addEventListener('click', () => {
-    const txt = document.getElementById('modText').value.trim(); if (!txt) return alert('Task text missing.');
+  document.getElementById('modSave').addEventListener('click', async () => {
+    const txt = document.getElementById('modText').value.trim();
+    if (!txt) { await showConfirm('MISSING INPUT', 'Task description cannot be empty.'); return; }
     customTasks.push({
       id: 'custom_' + Date.now(),
       dayKey: document.getElementById('modDay').value,
@@ -894,10 +895,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     saveCustomTasks(customTasks); modal.style.display = 'none';
     document.getElementById('modText').value = ''; document.getElementById('modTime').value = '';
+    await syncCustomTasksToCloud();
     executeRenderCycles();
   });
 
-  // ── BOOT ───────────────────────────────────────────────────────────────────
   function bootTrackerEngine() {
     const modeParam = new URLSearchParams(window.location.search).get('view');
     if (modeParam === 'day') { currentLayoutView = 'day'; document.getElementById('viewLayoutSwitch').value = 'day'; }
