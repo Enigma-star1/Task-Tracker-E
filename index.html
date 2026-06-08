@@ -197,7 +197,10 @@
     .day-col.is-today .day-date { color: var(--accent-gold); }
 
     .day-tasks { padding: 14px 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 80px; }
+
+    /* FIX #9 — empty day placeholder */
     .empty-day-msg { display: flex; align-items: center; justify-content: center; flex: 1; font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; opacity: 0.5; min-height: 60px; }
+
     .skipped-msg { display: flex; align-items: center; justify-content: center; flex: 1; font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
 
     .task-item { padding: 12px 14px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s ease; user-select: none; }
@@ -263,6 +266,7 @@
     .reupload-running-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text); }
     .reupload-running-count { font-family: 'Barlow Condensed', sans-serif; font-size: 36px; font-weight: 800; color: var(--cp); }
 
+    /* FIX #12 — inline confirm dialog styles */
     .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(7,7,15,0.85); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 1000; }
     .modal-content { background: #14101A; border: 1px solid var(--border-light); padding: 28px; border-radius: 8px; width: 340px; display: flex; flex-direction: column; gap: 14px; }
     .modal-content h3 { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; }
@@ -355,6 +359,7 @@
     <div class="legend-item"><div class="l-dot" style="background:var(--meet)"></div>Meeting</div>
   </div>
 
+  <!-- Add Task Modal -->
   <div class="modal" id="taskModal">
     <div class="modal-content">
       <h3>INJECT CUSTOM TASK</h3>
@@ -370,8 +375,8 @@
         <option value="production">Production Task (Carries Forward)</option>
         <option value="time-anchored">Time-Anchored (Stays Behind)</option>
       </select>
-      <input type="text" id="modText" name="taskDescription" autocomplete="off" placeholder="Task description">
-      <input type="text" id="modTime" name="taskTime" autocomplete="off" placeholder="Time (e.g. 4pm, 11am)">
+      <input type="text" id="modText" placeholder="Task description">
+      <input type="text" id="modTime" placeholder="Time (e.g. 4pm, 11am)">
       <div style="display:flex;gap:10px;margin-top:10px;">
         <button class="action-btn" id="modCancel" style="flex:1;">Cancel</button>
         <button class="action-btn" id="modSave" style="flex:1;background:var(--accent-purple)">Save</button>
@@ -379,6 +384,7 @@
     </div>
   </div>
 
+  <!-- FIX #12 — Inline confirm modal (replaces browser confirm() dialogs) -->
   <div class="modal" id="confirmModal">
     <div class="modal-content">
       <h3 id="confirmModalTitle">CONFIRM</h3>
@@ -398,6 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (Notification.permission === 'default') Notification.requestPermission();
 
+  // ── FIX #7 — AudioContext: single shared instance, unlocked on ANY user interaction ──
   let audioContextInstance = null;
   let audioUnlocked = false;
 
@@ -412,10 +419,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) { console.warn('AudioContext init failed:', e); }
   }
 
+  // Unlock on first interaction with anything
   document.addEventListener('click', unlockAudio, { once: true });
   document.addEventListener('keydown', unlockAudio, { once: true });
   document.addEventListener('touchstart', unlockAudio, { once: true });
 
+  // ── FIX #12 — Inline confirm dialog (no more browser confirm()) ──
   function showConfirm(title, message) {
     return new Promise((resolve) => {
       const modal  = document.getElementById('confirmModal');
@@ -449,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const baseWeekConfig = getTrackingWeek();
 
+  // FIX #10 — Added brand:'cp' to mon_yt
   const BASE_SCHEDULE_TEMPLATES = {
     sat: [
       { id:'sat_pray',     brand:'pray',   text:'Upload 6 videos — YT + Instagram', time:'11am',       oneTime:true,  taskType:'production' },
@@ -462,7 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ],
     mon: [
       { id:'mon_blog',     brand:'cp',     text:'Post Blog — Meta',               time:'9am',         taskType:'time-anchored' },
-      { id:'mon_yt',       brand:'cp',     text:'Post Course — YouTube',          time:'12pm',        taskType:'time-anchored' },
+      { id:'mon_yt',       brand:'cp',     text:'Post Course — YouTube',          time:'12pm',        taskType:'time-anchored' }, // FIX #10
       { id:'mon_wm',       brand:'cp',     text:'Post Watermarked video — Meta',  time:'12pm',        taskType:'time-anchored' },
       { id:'mon_reupload', brand:'cp',     text:'Reupload courses — Admin Portal',time:'Before 6pm',  isCounter:true, taskType:'production' },
       { id:'mon_meet',     brand:'meet',   text:'CP Meeting',                     time:'6pm',         taskType:'time-anchored' },
@@ -497,6 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const CUSTOM_TASKS_KEY   = 'enigma_custom_tasks_v6';
   const TASK_NOTES_KEY     = 'enigma_task_notes_v1';
   const MEETING_OFFSET_KEY = 'enigma_meeting_offset_v1';
+  // FIX #6 — persist alerted tasks in sessionStorage so refreshes within same browser session don't re-fire
   const ALERTED_TASKS_KEY  = 'enigma_alerted_tasks_session';
   const BRAND_LABELS = { cp:'CareerPaddy', tratun:'Tratun', studio:'Enigma Studio', pray:'Praying Scripture', meet:'Meetings' };
 
@@ -509,6 +520,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let customTasks  = (() => { try { return JSON.parse(localStorage.getItem(CUSTOM_TASKS_KEY))   || []; } catch { return []; } })();
   let taskNotes    = (() => { try { return JSON.parse(localStorage.getItem(TASK_NOTES_KEY))     || {}; } catch { return {}; } })();
   let currentMeetingOffset = (() => { try { return parseInt(localStorage.getItem(MEETING_OFFSET_KEY), 10) || 20; } catch { return 20; } })();
+
+  // FIX #6 — load alerted tasks from sessionStorage so page refresh doesn't re-fire alarms
   let alertedTasks = (() => { try { return JSON.parse(sessionStorage.getItem(ALERTED_TASKS_KEY)) || {}; } catch { return {}; } })();
 
   let selectedBrandFilter  = 'all';
@@ -524,7 +537,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function saveCustomTasks(t) { localStorage.setItem(CUSTOM_TASKS_KEY, JSON.stringify(t)); }
   function saveTaskNotes()    { localStorage.setItem(TASK_NOTES_KEY,    JSON.stringify(taskNotes)); }
+  // FIX #6 — persist alerted tasks across refreshes within session
   function saveAlertedTasks() { sessionStorage.setItem(ALERTED_TASKS_KEY, JSON.stringify(alertedTasks)); }
+
+  // ── SUPABASE CLOUD ────────────────────────────────────────────────────────
 
   async function fetchCloudState() {
     try {
@@ -543,6 +559,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      // FIX #2 — Custom tasks cloud retrieval: read from dedicated text column
+      // The cloud stores custom tasks in a row with id='cloud_custom_tasks_blob'
+      // and the JSON payload in the 'text_val' column (not is_done/counter_val)
       try {
         const tasksRes  = await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?id=eq.cloud_custom_tasks_blob&select=text_val`, {
           headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
@@ -571,7 +590,6 @@ document.addEventListener('DOMContentLoaded', () => {
       id:          taskId,
       is_done:     typeof val === 'boolean' ? val : false,
       counter_val: typeof val === 'number'  ? val : null,
-      text_val:    typeof val === 'string'  ? val : null,
       updated_at:  new Date().toISOString()
     };
     try {
@@ -583,13 +601,29 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) { console.error('Cloud write error:', e); }
   }
 
+  // FIX #2 — Custom tasks saved to dedicated text_val column, not boolean is_done
   async function syncCustomTasksToCloud() {
     const serializedString = JSON.stringify(customTasks);
-    await syncToCloud('cloud_custom_tasks_blob', serializedString);
+    const payload = {
+      id:         'cloud_custom_tasks_blob',
+      is_done:    false,
+      counter_val: null,
+      text_val:   serializedString,
+      updated_at: new Date().toISOString()
+    };
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/tracker_state`, {
+        method:  'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify(payload)
+      });
+    } catch(e) { console.error('Cloud custom tasks write error:', e); }
   }
 
+  // FIX #1 — Reset uses correct Supabase REST DELETE syntax: delete all rows by matching a always-true filter
   async function clearCloudState() {
     try {
+      // Delete all rows where id is not an impossible value (effectively all rows)
       await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?id=neq.__never_match_placeholder__`, {
         method:  'DELETE',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' }
@@ -597,6 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) { console.error('Cloud clear error:', e); }
   }
 
+  // ── SCHEDULE ──────────────────────────────────────────────────────────────
   function buildSchedule() {
     return baseWeekConfig.map(day => ({
       ...day,
@@ -609,13 +644,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentIdx = baseWeekConfig.findIndex(d => d.key === day.key);
     let combined = [...day.tasks];
 
+    // Filter out deleted tasks
     combined = combined.filter(t => !state[`deleted_template_${t.id}`]);
 
     for (let i = 0; i < currentIdx; i++) {
       const prior = scheduleContext[i];
       if (state[`skip_day_${prior.key}`]) continue;
       prior.tasks.forEach(t => {
+        // FIX #3 — Also filter deleted tasks from the carry-forward source pool
         if (state[`deleted_template_${t.id}`]) return;
+        // FIX #4 — oneTime tasks are excluded from carry-forward
         if (t.oneTime === true) return;
         if (t.taskType === 'production' && !t.isCounter && !state[t.id]) {
           if (!combined.some(ex => ex.id === t.id)) combined.push({ ...t, isCarriedForward: true });
@@ -625,7 +663,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return combined;
   }
 
+  // ── ALARM ─────────────────────────────────────────────────────────────────
   function playAlertChime() {
+    // FIX #7 — Use shared unlocked AudioContext only; don't create a new one inside daemon
     if (!audioUnlocked || !audioContextInstance) return;
     try {
       const osc  = audioContextInstance.createOscillator();
@@ -646,6 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pm = s.includes('pm'), am = s.includes('am');
     if (!pm && !am) return null;
     s = s.replace('pm','').replace('am','');
+    // FIX #11 — Strip any non-numeric/colon suffix before parsing (handles "12pm+", etc.)
     s = s.replace(/[^0-9:]/g, '');
     if (!s) return null;
     let h = 0, m = 0;
@@ -691,13 +732,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (!target || target !== curTime || alertedTasks[task.id]) return;
         alertedTasks[task.id] = true;
-        saveAlertedTasks();
+        saveAlertedTasks(); // FIX #6 — persist so refresh doesn't re-fire
         playAlertChime();
         if (Notification.permission === 'granted') new Notification('ENIGMA — Alert', { body: msg });
       });
     }, 1000);
   }
 
+  // ── METRICS ───────────────────────────────────────────────────────────────
   function getDayMetrics(day, fullSchedule) {
     if (state[`skip_day_${day.key}`]) return { total:0, done:0, percentage:0, isSkipped:true };
     const tasks = getComputedDayTasks(day, fullSchedule);
@@ -730,6 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('velocityFill').style.width = `${total > 0 ? (done/total)*100 : 0}%`;
   }
 
+  // ── RENDER ────────────────────────────────────────────────────────────────
   function renderStreak() {
     const el = document.getElementById('streakDots'); el.innerHTML = '';
     const today = getToday(); const fs = buildSchedule();
@@ -871,6 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
           selectedBrandFilter === 'all' || task.brand === selectedBrandFilter
         );
 
+        // FIX #9 — Show placeholder when day has no tasks instead of collapsing
         if (computedTasks.length === 0) {
           const emptyMsg = document.createElement('div');
           emptyMsg.className = 'empty-day-msg';
@@ -925,6 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
               taskLeft.appendChild(pip); taskLeft.appendChild(check); taskLeft.appendChild(content);
               row.appendChild(taskLeft);
 
+              // FIX #12 — Delete uses inline confirm modal
               const delBtn = document.createElement('div');
               delBtn.className = 'delete-task-btn';
               delBtn.textContent = '×';
@@ -964,6 +1009,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function executeRenderCycles() { renderGrid(); renderTabsRow(); renderStreak(); updateTodayCount(); calculateGlobalVelocity(); }
 
+  // ── EVENTS ────────────────────────────────────────────────────────────────
   document.getElementById('viewLayoutSwitch').addEventListener('change', (e) => {
     summaryLayoutVisible = false;
     document.getElementById('summaryViewToggleBtn').classList.remove('active-view-btn');
@@ -984,6 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.classList.toggle('active-view-btn', summaryLayoutVisible); executeRenderCycles();
   });
 
+  // FIX #12 — Reset uses inline confirm modal
   document.getElementById('resetBtn').addEventListener('click', async () => {
     const confirmed = await showConfirm('RESET WEEK', 'This will wipe all task completions, custom tasks, and cloud data for this week. Are you sure?');
     if (confirmed) {
@@ -997,6 +1044,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('addTaskBtn').addEventListener('click', () => {
     const daySelect = document.getElementById('modDay'); daySelect.innerHTML = '';
     baseWeekConfig.forEach(d => { daySelect.innerHTML += `<option value="${d.key}">${d.label}</option>`; });
+    // FIX #5 — Default modal day dropdown to the currently active tab
     daySelect.value = activeDayTab;
     modal.style.display = 'flex';
   });
@@ -1020,6 +1068,7 @@ document.addEventListener('DOMContentLoaded', () => {
     executeRenderCycles();
   });
 
+  // ── BOOT ──────────────────────────────────────────────────────────────────
   function bootTrackerEngine() {
     const modeParam = new URLSearchParams(window.location.search).get('view');
     if (modeParam === 'day') { currentLayoutView = 'day'; document.getElementById('viewLayoutSwitch').value = 'day'; }
