@@ -517,7 +517,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // FIX #5 — Week picker rebuilt relative to current time each call, not frozen at boot
   function buildWeekOptions() {
     const today = new Date();
     const weeks = [];
@@ -535,7 +534,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let recurringTasks = [];
   let taskNotes      = {};
 
-  // openDrawerTaskId tracks which task's notes drawer is open (persists across renders)
   let openDrawerTaskId = null;
 
   const MEETING_OFFSET_KEY = 'enigma_meeting_offset_v2';
@@ -561,7 +559,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function buildWeekPicker() {
     const picker = document.getElementById('weekPicker');
     picker.innerHTML = '';
-    // FIX #5 — always compute fresh from current time so midnight crossover works
     const todayWeek = getSaturdayAnchor(getToday());
     buildWeekOptions().forEach(sat => {
       const opt = document.createElement('option');
@@ -649,7 +646,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // Fetch recurring tasks globally (not week-scoped)
       const recRes  = await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?id=eq.blob_recurring_tasks&select=*`, { headers: SB_HEADERS });
       const recData = await recRes.json();
       if (Array.isArray(recData) && recData.length > 0 && recData[0].text_val) {
@@ -665,9 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // FIX #1 — syncRow: global rows must NOT have week_key overwritten
   async function syncRow(payload) {
-    // Only set week_key for non-global rows
     if (payload.week_key !== 'global') {
       payload.week_key = currentWeekKey;
     }
@@ -698,7 +692,6 @@ document.addEventListener('DOMContentLoaded', () => {
   async function syncCustomTasks() {
     await syncRow({ id: `blob_custom_tasks_${currentWeekKey}`, is_done: false, counter_val: null, text_val: JSON.stringify(customTasks), updated_at: new Date().toISOString() });
   }
-  // FIX #1 — Recurring tasks use week_key:'global' so syncRow won't overwrite it
   async function syncRecurringTasks() {
     await syncRow({ id: 'blob_recurring_tasks', week_key: 'global', is_done: false, counter_val: null, text_val: JSON.stringify(recurringTasks), updated_at: new Date().toISOString() });
   }
@@ -709,7 +702,6 @@ document.addEventListener('DOMContentLoaded', () => {
     await syncRow({ id: `order_${dayKey}`, is_done: false, counter_val: null, text_val: JSON.stringify(state.order[dayKey] || []), updated_at: new Date().toISOString() });
   }
 
-  // FIX #1 — Reset only deletes current week rows, never the global recurring tasks row
   async function clearCurrentWeekCloud() {
     setSyncStatus('pending');
     try {
@@ -783,7 +775,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.visibilityState === 'visible') {
       const now = Date.now();
       if (now - lastFocusTime > 30000) {
-        // FIX #5 — also rebuild week picker on tab focus in case midnight passed
         buildWeekPicker();
         fetchCloudState();
       }
@@ -902,23 +893,27 @@ document.addEventListener('DOMContentLoaded', () => {
       combined = ordered;
     }
 
-    // FIX #2 — Carry-forward: assign a unique derived ID so carried tasks have
-    // independent completion state from their source task.
+    // ── CARRY-FORWARD (FIXED) ──────────────────────────────────────────────
+    // Rules:
+    //   1. Only carry from days whose date has already passed (prior.date < today).
+    //      A task on Wednesday should NOT appear on Thursday if today is Tuesday.
+    //   2. Keep the original task ID — so ticking the task on any day marks it
+    //      done everywhere (no split completion state).
+    const todayStr = getToday();
     for (let i = 0; i < currentIdx; i++) {
       const prior = scheduleContext[i];
+      // Only carry from days that are strictly in the past
+      if (prior.date >= todayStr) continue;
       if (state.skipped[prior.key]) continue;
       prior.tasks.forEach(t => {
-        if (state.deleted[t.id])        return;
-        if (t.oneTime === true)         return;
-        if (t.isCounter)                return;
+        if (state.deleted[t.id])         return;
+        if (t.oneTime === true)          return;
+        if (t.isCounter)                 return;
         if (t.taskType !== 'production') return;
-        // Use source task's own completion for source day; derived ID for carry day
-        const sourceCompleted = state.completions[t.id];
-        if (!sourceCompleted) {
-          const cfId = `${t.id}_cf_${day.key}`;
-          // Don't re-add if already present (e.g. from multiple carry days)
-          if (!combined.some(ex => ex.id === t.id || ex.id === cfId)) {
-            combined.push({ ...t, id: cfId, isCarriedForward: true, _sourceId: t.id });
+        if (!state.completions[t.id]) {
+          // Use the original ID — shared completion state across all carry days
+          if (!combined.some(ex => ex.id === t.id)) {
+            combined.push({ ...t, isCarriedForward: true });
           }
         }
       });
@@ -951,7 +946,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
   }
 
-  // FIX — Separated clock tick from alarm check to avoid rebuilding schedule every second
   function runClockTick() {
     setInterval(() => {
       const now = new Date();
@@ -963,7 +957,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function runAlarmDaemon() {
-    // Alarm checks every 30s — no need to check every second
     setInterval(() => {
       const todayStr = getToday();
       if (currentWeekKey !== getSaturdayAnchor(todayStr)) return;
@@ -1289,13 +1282,11 @@ document.addEventListener('DOMContentLoaded', () => {
               metaRow.appendChild(badges);
               content.appendChild(text); content.appendChild(metaRow);
 
-              // FIX #4 — Notes drawer: restore open state from openDrawerTaskId
               const drawer     = document.createElement('div'); drawer.className='task-notes-drawer';
               const notesInput = document.createElement('textarea'); notesInput.className='task-notes-field';
               notesInput.placeholder='Add contextual logging notes…';
               notesInput.value = taskNotes[task.id] || '';
               notesInput.disabled = isReadOnly;
-              // Restore open state if this was the open drawer before re-render
               if (openDrawerTaskId === task.id) drawer.classList.add('open');
               notesInput.addEventListener('click', e => e.stopPropagation());
               notesInput.addEventListener('input', async (e) => {
@@ -1352,13 +1343,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     updateTodayCount(); calculateVelocity(); renderStreak();
                   } else {
-                    // FIX #4 — Track open drawer in state so it survives re-render
                     if (openDrawerTaskId === task.id) {
                       openDrawerTaskId = null;
                       drawer.classList.remove('open');
                     } else {
                       openDrawerTaskId = task.id;
-                      // Close any currently open drawer in the DOM
                       document.querySelectorAll('.task-notes-drawer.open').forEach(d => d.classList.remove('open'));
                       drawer.classList.add('open');
                     }
@@ -1425,7 +1414,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('modText').value    = '';
     document.getElementById('modTime').value    = '';
     document.getElementById('modRecurring').checked = false;
-    // FIX — also reset brand dropdown on modal open
     document.getElementById('modBrand').value  = 'cp';
     document.getElementById('modType').value   = 'production';
     modal.style.display = 'flex';
@@ -1466,8 +1454,8 @@ document.addEventListener('DOMContentLoaded', () => {
     buildWeekPicker();
     isReadOnly = false;
     updateOnlineStatus();
-    runClockTick();   // clock runs every 1s — lightweight
-    runAlarmDaemon(); // alarm checks every 30s — heavy work separated
+    runClockTick();
+    runAlarmDaemon();
     showLoadingGrid();
     fetchCloudState();
     initRealtime();
