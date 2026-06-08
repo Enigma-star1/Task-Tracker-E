@@ -504,10 +504,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state[`skip_day_${day.key}`]) return [];
     const currentIdx = baseWeekConfig.findIndex(d => d.key === day.key);
     let combined = [...day.tasks];
+    
+    // Filter out locally deleted template components configuration tracking vectors
+    combined = combined.filter(t => !state[`deleted_template_${t.id}`]);
+
     for (let i = 0; i < currentIdx; i++) {
       const prior = scheduleContext[i];
       if (state[`skip_day_${prior.key}`]) continue;
       prior.tasks.forEach(t => {
+        if (state[`deleted_template_${t.id}`]) return;
         if (t.taskType === 'production' && !t.isCounter && !state[t.id]) {
           if (!combined.some(ex => ex.id === t.id)) combined.push({ ...t, isCarriedForward: true });
         }
@@ -669,6 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fs.forEach(day => {
       day.tasks.forEach(t => {
+        if (state[`deleted_template_${t.id}`]) return;
         if (t.isCounter) { reuploadSum += (state[t.id]||0); }
         else {
           totalNormalTasks++;
@@ -807,21 +813,21 @@ document.addEventListener('DOMContentLoaded', () => {
             taskLeft.appendChild(check); taskLeft.appendChild(content);
             row.appendChild(taskLeft);
 
-            // Deletion Mechanism for Custom Instantiated Records
-            if (task.id.startsWith('custom_')) {
-              const delBtn = document.createElement('div');
-              delBtn.className = 'delete-task-btn';
-              delBtn.textContent = '×';
-              delBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (confirm('Delete this custom task permanently?')) {
-                  customTasks = customTasks.filter(t => t.id !== task.id);
-                  saveCustomTasks(customTasks);
-                  executeRenderCycles();
-                }
-              });
-              row.appendChild(delBtn);
-            }
+            // Universal Deletion Mechanism enabled for all tasks
+            const delBtn = document.createElement('div');
+            delBtn.className = 'delete-task-btn';
+            delBtn.textContent = '×';
+            delBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (confirm('Delete this task permanently?')) {
+                customTasks = customTasks.filter(t => t.id !== task.id);
+                saveCustomTasks(customTasks);
+                state[`deleted_template_${task.id}`] = true;
+                syncToCloud(`deleted_template_${task.id}`, true);
+                executeRenderCycles();
+              }
+            });
+            row.appendChild(delBtn);
 
             item.appendChild(row);
 
