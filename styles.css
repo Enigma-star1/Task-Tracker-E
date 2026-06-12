@@ -272,6 +272,21 @@
 
     .delete-task-btn { color:var(--muted); cursor:pointer; font-size:14px; font-weight:800; line-height:1; padding:0 4px; transition:color 0.15s; flex-shrink:0; }
     .delete-task-btn:hover { color:var(--action-pink); }
+    .task-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+    .task-action-btn {
+      color:var(--muted);
+      background:transparent;
+      border:1px solid transparent;
+      border-radius:4px;
+      cursor:pointer;
+      font-family:inherit;
+      font-size:10px;
+      line-height:1;
+      padding:4px 5px;
+      transition:all 0.15s;
+    }
+    .task-action-btn:hover { color:#fff; border-color:var(--border-light); background:rgba(255,255,255,0.05); }
+    .task-action-btn.danger:hover { color:var(--action-pink); border-color:rgba(244,114,182,0.45); }
 
     .task-notes-drawer { max-height:0; overflow:hidden; transition:max-height 0.22s cubic-bezier(0.4,0,0.2,1); }
     .task-notes-drawer.open { max-height:100px; }
