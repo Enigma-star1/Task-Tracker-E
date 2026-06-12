@@ -69,6 +69,7 @@
   let state={completions:{},counters:{},skipped:{},deleted:{},order:{}};
   let customTasks=[],recurringTasks=[],taskNotes={};
   let openDrawerTaskId=null;
+  let editingTaskContext=null;
   const MEETING_OFFSET_KEY='enigma_meeting_offset_v2', ALERTED_KEY='enigma_alerted_session_v2';
   const MISSED_DISMISSED_KEY='enigma_missed_dismissed';
   const SYNC_QUEUE_KEY='enigma_sync_queue_v3';
@@ -196,6 +197,96 @@
   async function syncNotes(){await syncRow({id:`blob_task_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(taskNotes),updated_at:new Date().toISOString()});}
   async function syncOrder(dayKey){await syncRow({id:`order_${dayKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(state.order[dayKey]||[]),updated_at:new Date().toISOString()});}
   async function clearCurrentWeekCloud(){setSyncStatus('pending');try{await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${currentWeekKey}`,{method:'DELETE',headers:SB_HEADERS});setSyncStatus('ok');}catch(e){setSyncStatus('fail');}}
+
+  function findEditableTask(taskId){
+    const customIndex=customTasks.findIndex(t=>t.id===taskId);
+    if(customIndex>=0)return{source:'custom',index:customIndex,task:customTasks[customIndex]};
+    const recurringIndex=recurringTasks.findIndex(t=>t.id===taskId);
+    if(recurringIndex>=0)return{source:'recurring',index:recurringIndex,task:recurringTasks[recurringIndex]};
+    return{source:'template',index:-1,task:null};
+  }
+
+  async function persistTaskCollections(source){
+    if(source==='recurring')await syncRecurringTasks();
+    else await syncCustomTasks();
+  }
+
+  function buildTaskFromModal(existingId){
+    const isRecurring=document.getElementById('modRecurring').checked;
+    return{
+      id:existingId||'custom_'+Date.now(),
+      dayKey:document.getElementById('modDay').value,
+      brand:document.getElementById('modBrand').value,
+      text:document.getElementById('modText').value.trim(),
+      time:document.getElementById('modTime').value.trim()||'Anytime',
+      oneTime:false,
+      recurring:isRecurring,
+      taskType:document.getElementById('modType').value
+    };
+  }
+
+  function openTaskModal(mode,task=null){
+    editingTaskContext=mode==='edit'&&task?{id:task.id,original:{...task}}:null;
+    const daySelect=document.getElementById('modDay');daySelect.innerHTML='';
+    getWeekDays(currentWeekKey).forEach(d=>{daySelect.innerHTML+=`<option value="${d.key}">${d.label}</option>`;});
+    document.getElementById('taskModalTitle').textContent=mode==='edit'?'EDIT TASK':'INJECT CUSTOM TASK';
+    document.getElementById('modText').value=task?.text||'';
+    document.getElementById('modTime').value=task?.time||'';
+    document.getElementById('modRecurring').checked=!!task?.recurring;
+    document.getElementById('modBrand').value=task?.brand||'cp';
+    document.getElementById('modType').value=task?.taskType||'production';
+    daySelect.value=task?.dayKey||activeDayTab;
+    document.getElementById('taskModal').style.display='flex';
+  }
+
+  async function saveTaskFromModal(){
+    const txt=document.getElementById('modText').value.trim();
+    if(!txt){await showConfirm('MISSING INPUT','Task description cannot be empty.');return;}
+    const nextTask=buildTaskFromModal(editingTaskContext?.id);
+    const wantsRecurring=nextTask.recurring;
+    if(!editingTaskContext){
+      if(wantsRecurring){recurringTasks.push(nextTask);await syncRecurringTasks();}
+      else{customTasks.push(nextTask);await syncCustomTasks();}
+      return;
+    }
+    const found=findEditableTask(editingTaskContext.id);
+    const targetSource=wantsRecurring?'recurring':'custom';
+    if(found.source==='custom')customTasks=customTasks.filter(t=>t.id!==editingTaskContext.id);
+    if(found.source==='recurring')recurringTasks=recurringTasks.filter(t=>t.id!==editingTaskContext.id);
+    if(found.source==='template'){
+      state.deleted[editingTaskContext.id]=true;
+      await syncDeleted(editingTaskContext.id);
+      nextTask.id='custom_'+Date.now();
+    }
+    if(targetSource==='recurring')recurringTasks.push(nextTask);
+    else customTasks.push(nextTask);
+    await syncCustomTasks();await syncRecurringTasks();
+  }
+
+  async function duplicateTask(task,dayKey){
+    const copy={...task,id:'custom_'+Date.now(),dayKey:task.dayKey||dayKey,oneTime:false,recurring:false};
+    customTasks.push(copy);await syncCustomTasks();
+    pushUndo(`Duplicated "${task.text.substring(0,30)}"`,async()=>{customTasks=customTasks.filter(t=>t.id!==copy.id);await syncCustomTasks();});
+    executeRenderCycles();
+  }
+
+  async function archiveTask(task){
+    const confirmed=await showConfirm('ARCHIVE TASK','Hide this task from the current tracker?');
+    if(!confirmed)return;
+    const taskCopy={...task};const found=findEditableTask(task.id);
+    if(found.source==='custom')customTasks=customTasks.filter(t=>t.id!==task.id);
+    if(found.source==='recurring')recurringTasks=recurringTasks.filter(t=>t.id!==task.id);
+    state.deleted[task.id]=true;
+    await syncCustomTasks();await syncRecurringTasks();await syncDeleted(task.id);
+    pushUndo(`Archived "${task.text.substring(0,30)}"`,async()=>{
+      state.deleted[task.id]=false;
+      if(found.source==='custom')customTasks.push(taskCopy);
+      if(found.source==='recurring')recurringTasks.push(taskCopy);
+      await syncCustomTasks();await syncRecurringTasks();
+      await syncRow({id:`deleted_${task.id}`,is_done:false,counter_val:null,updated_at:new Date().toISOString()});
+    });
+    executeRenderCycles();
+  }
 
   // ── REALTIME ───────────────────────────────────────────
   function initRealtime(){
