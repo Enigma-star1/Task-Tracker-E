@@ -79,6 +79,7 @@
   let summaryLayoutVisible=false,isReadOnly=false;
   let currentWeekKey=getSaturdayAnchor(getToday()),isOnline=navigator.onLine,realtimeConnected=false;
   let missedBannerDismissed=false;
+  let historyAnalytics=[];
 
   document.getElementById('meetingOffsetConfig').value=currentMeetingOffset.toString();
   const todayDayObj=getWeekDays(currentWeekKey).find(d=>d.date===getToday());
@@ -103,7 +104,7 @@
     currentWeekKey=e.target.value;isReadOnly=currentWeekKey!==getSaturdayAnchor(getToday());
     state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};openDrawerTaskId=null;
     missedBannerDismissed=false;
-    showLoadingGrid();await fetchCloudState();
+    showLoadingGrid();await fetchCloudState();fetchHistoryAnalytics();
   });
 
   // ── SYNC ───────────────────────────────────────────────
@@ -175,6 +176,18 @@
     finally{executeRenderCycles();}
   }
 
+  async function fetchHistoryAnalytics(){
+    const weeks=buildWeekOptions();
+    try{
+      const query=weeks.map(w=>`"${w}"`).join(',');
+      const res=await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=in.(${query})&select=*`,{headers:SB_HEADERS});
+      const rows=await res.json();
+      if(!Array.isArray(rows))return;
+      historyAnalytics=weeks.map(weekKey=>summarizeWeekRows(weekKey,rows.filter(r=>r.week_key===weekKey))).filter(Boolean);
+      if(summaryLayoutVisible)renderSummary();
+    }catch(e){console.warn('History analytics unavailable:',e);}
+  }
+
   async function syncRow(payload){
     if(payload.week_key!=='global') payload.week_key=currentWeekKey;
     if(!isOnline){syncQueue.push(payload);persistSyncQueue();setSyncStatus('fail');updateOnlineStatus();return;}
@@ -204,11 +217,6 @@
     const recurringIndex=recurringTasks.findIndex(t=>t.id===taskId);
     if(recurringIndex>=0)return{source:'recurring',index:recurringIndex,task:recurringTasks[recurringIndex]};
     return{source:'template',index:-1,task:null};
-  }
-
-  async function persistTaskCollections(source){
-    if(source==='recurring')await syncRecurringTasks();
-    else await syncCustomTasks();
   }
 
   function buildTaskFromModal(existingId){
@@ -241,15 +249,22 @@
 
   async function saveTaskFromModal(){
     const txt=document.getElementById('modText').value.trim();
-    if(!txt){await showConfirm('MISSING INPUT','Task description cannot be empty.');return;}
+    if(!txt){await showConfirm('MISSING INPUT','Task description cannot be empty.');return false;}
     const nextTask=buildTaskFromModal(editingTaskContext?.id);
     const wantsRecurring=nextTask.recurring;
     if(!editingTaskContext){
       if(wantsRecurring){recurringTasks.push(nextTask);await syncRecurringTasks();}
       else{customTasks.push(nextTask);await syncCustomTasks();}
-      return;
+      pushUndo(`Added "${nextTask.text.substring(0,30)}"`,async()=>{
+        customTasks=customTasks.filter(t=>t.id!==nextTask.id);
+        recurringTasks=recurringTasks.filter(t=>t.id!==nextTask.id);
+        await syncCustomTasks();await syncRecurringTasks();
+      });
+      return true;
     }
+    const originalId=editingTaskContext.id;
     const found=findEditableTask(editingTaskContext.id);
+    const previousCustom=[...customTasks],previousRecurring=[...recurringTasks],previousDeleted={...state.deleted};
     const targetSource=wantsRecurring?'recurring':'custom';
     if(found.source==='custom')customTasks=customTasks.filter(t=>t.id!==editingTaskContext.id);
     if(found.source==='recurring')recurringTasks=recurringTasks.filter(t=>t.id!==editingTaskContext.id);
@@ -261,6 +276,12 @@
     if(targetSource==='recurring')recurringTasks.push(nextTask);
     else customTasks.push(nextTask);
     await syncCustomTasks();await syncRecurringTasks();
+    pushUndo(`Edited "${nextTask.text.substring(0,30)}"`,async()=>{
+      customTasks=previousCustom;recurringTasks=previousRecurring;state.deleted=previousDeleted;
+      await syncCustomTasks();await syncRecurringTasks();
+      if(found.source==='template')await syncRow({id:`deleted_${originalId}`,is_done:false,counter_val:null,updated_at:new Date().toISOString()});
+    });
+    return true;
   }
 
   async function duplicateTask(task,dayKey){
@@ -650,6 +671,101 @@
     renderBriefTile(anchor,'Carry Load',insights.carry,insights.carry===0?'No production backlog':'Unfinished production carried forward',insights.carry>2?'warning':(insights.carry>0?'attention':'good'));
   }
 
+  function summarizeWeekRows(weekKey,rows){
+    const completions={},counters={},skipped={},deleted={};
+    let weekCustomTasks=[];
+    rows.forEach(row=>{
+      const id=row.id;
+      if(!id)return;
+      if(id===`blob_custom_tasks_${weekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))weekCustomTasks=p;}catch{}return;}
+      if(id.startsWith('skip_day_')){skipped[id.replace('skip_day_','')]=Boolean(row.is_done);return;}
+      if(id.startsWith('deleted_')){deleted[id.replace('deleted_','')]=Boolean(row.is_done);return;}
+      if(id.startsWith('blob_')||id.startsWith('order_'))return;
+      if(row.counter_val!==null&&row.counter_val!==undefined)counters[id]=Number(row.counter_val);
+      else completions[id]=Boolean(row.is_done);
+    });
+    const prev={completions:state.completions,counters:state.counters,skipped:state.skipped,deleted:state.deleted,customTasks};
+    state.completions=completions;state.counters=counters;state.skipped=skipped;state.deleted=deleted;
+    customTasks=weekCustomTasks;
+    const oldWeek=currentWeekKey;currentWeekKey=weekKey;
+    const fs=buildSchedule();
+    let total=0,done=0,reuploads=0;
+    fs.forEach(day=>{
+      if(state.skipped[day.key])return;
+      getComputedDayTasks(day,fs).forEach(t=>{
+        if(t.isCounter){reuploads+=(state.counters[t.id]||0);total++;if((state.counters[t.id]||0)>0)done++;}
+        else{total++;if(state.completions[t.id])done++;}
+      });
+    });
+    currentWeekKey=oldWeek;
+    state.completions=prev.completions;state.counters=prev.counters;state.skipped=prev.skipped;state.deleted=prev.deleted;
+    customTasks=prev.customTasks;
+    return{weekKey,total,done,percent:total?Math.round((done/total)*100):0,reuploads};
+  }
+
+  function getAnalytics(fs,diag){
+    const dayStats=fs.map(day=>{
+      const metrics=getDayMetrics(day,fs);
+      const open=Math.max(metrics.total-metrics.done,0);
+      return{...day,...metrics,open,skipped:!!state.skipped[day.key]};
+    });
+    const activeDays=dayStats.filter(d=>!d.skipped&&d.total>0);
+    const best=activeDays.slice().sort((a,b)=>b.percentage-a.percentage||b.done-a.done)[0]||null;
+    const weak=activeDays.slice().sort((a,b)=>a.percentage-b.percentage||b.open-a.open)[0]||null;
+    const brandEntries=Object.entries(diag).filter(([,m])=>m.total>0).map(([brand,m])=>({brand,...m,missed:m.total-m.done,pct:Math.round((m.done/m.total)*100)}));
+    const missedBrand=brandEntries.sort((a,b)=>b.missed-a.missed||a.pct-b.pct)[0]||null;
+    let carryCount=0,recurringOpen=0;
+    fs.forEach(day=>getComputedDayTasks(day,fs).forEach(t=>{
+      const done=t.isCounter?(state.counters[t.id]||0)>0:!!state.completions[t.id];
+      if(t.isCarriedForward&&!done)carryCount++;
+      if(t.recurring&&!done)recurringOpen++;
+    }));
+    return{dayStats,best,weak,missedBrand,carryCount,recurringOpen};
+  }
+
+  function renderAnalyticsTile(anchor,label,value,note,tone){
+    const tile=document.createElement('div');tile.className='analytics-tile'+(tone?` ${tone}`:'');
+    const l=document.createElement('div');l.className='analytics-label';l.textContent=label;
+    const v=document.createElement('div');v.className='analytics-value';v.textContent=value;
+    const n=document.createElement('div');n.className='analytics-note';n.textContent=note;
+    tile.appendChild(l);tile.appendChild(v);tile.appendChild(n);anchor.appendChild(tile);
+  }
+
+  function renderAnalytics(fs,diag){
+    const analytics=getAnalytics(fs,diag);
+    const grid=document.getElementById('analyticsGrid');
+    const days=document.getElementById('dayAnalyticsAnchor');
+    if(!grid||!days)return;
+    grid.innerHTML='';days.innerHTML='';
+    renderAnalyticsTile(grid,'Best Day',analytics.best?analytics.best.label:'-',analytics.best?`${analytics.best.percentage}% complete`:'No active day yet',analytics.best&&analytics.best.percentage>=80?'good':'attention');
+    renderAnalyticsTile(grid,'Weak Spot',analytics.weak?analytics.weak.label:'-',analytics.weak?`${analytics.weak.open} open item${analytics.weak.open===1?'':'s'}`:'No weak spot yet',analytics.weak&&analytics.weak.open>0?'warning':'good');
+    renderAnalyticsTile(grid,'Missed Brand',analytics.missedBrand?BRAND_LABELS[analytics.missedBrand.brand]:'-',analytics.missedBrand?`${analytics.missedBrand.missed} open / ${analytics.missedBrand.total} total`:'All brands clear','attention');
+    renderAnalyticsTile(grid,'Carry Backlog',analytics.carryCount,analytics.carryCount?'Production tasks rolled forward':'No carry-forward load',analytics.carryCount>0?'warning':'good');
+    renderAnalyticsTile(grid,'Recurring Open',analytics.recurringOpen,analytics.recurringOpen?'Repeating tasks still open':'Recurring tasks clear',analytics.recurringOpen>0?'attention':'good');
+    const latest=historyAnalytics[0];
+    renderAnalyticsTile(grid,'Week Score',latest?`${latest.percent}%`:'Live',latest?`${latest.done}/${latest.total} saved items in current week`:'Updates after cloud history loads',latest&&latest.percent>=70?'good':'attention');
+    analytics.dayStats.forEach(day=>{
+      const row=document.createElement('div');row.className='day-analytics-row';
+      row.innerHTML=`<div class="day-analytics-name">${day.label}</div><div class="day-analytics-track"><div class="day-analytics-fill" style="width:${day.percentage}%"></div></div><div class="day-analytics-meta">${day.done}/${day.total}</div>`;
+      days.appendChild(row);
+    });
+  }
+
+  function renderHistoryStrip(doneAll,totalAll,pctAll){
+    const histAnchor=document.getElementById('weekHistoryAnchor');histAnchor.innerHTML='';
+    const current={weekKey:currentWeekKey,total:totalAll,done:doneAll,percent:pctAll,reuploads:0};
+    const merged=[current,...historyAnalytics.filter(w=>w.weekKey!==currentWeekKey)].slice(0,8);
+    if(!merged.length){histAnchor.innerHTML='<div class="history-note">History will appear after cloud sync loads.</div>';return;}
+    const strip=document.createElement('div');strip.className='history-strip';
+    merged.forEach(w=>{
+      const f=new Date(w.weekKey+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      const row=document.createElement('div');row.className='history-row';
+      row.innerHTML=`<div class="history-week-label">${f}</div><div class="history-track"><div class="history-fill" style="width:${w.percent}%"></div></div><div class="history-percent">${w.percent}%</div>`;
+      strip.appendChild(row);
+    });
+    histAnchor.appendChild(strip);
+  }
+
   function renderSummary(){
     const anchor=document.getElementById('brandMetricsAnchor');anchor.innerHTML='';
     const fs=buildSchedule();let reuploadSum=0;
@@ -663,12 +779,11 @@
       anchor.appendChild(row);
     });
     document.getElementById('reuploadRunningCount').textContent=reuploadSum;
-    const histAnchor=document.getElementById('weekHistoryAnchor');histAnchor.innerHTML='';
     const totalAll=Object.values(diag).reduce((a,b)=>a+b.total,0);
     const doneAll=Object.values(diag).reduce((a,b)=>a+b.done,0);
     const pctAll=totalAll>0?Math.round((doneAll/totalAll)*100):0;
-    const f=new Date(currentWeekKey+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    histAnchor.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><span>${f} week</span><span style="color:var(--muted)">${doneAll}/${totalAll} tasks</span><span style="color:var(--accent-gold);font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:600">${pctAll}%</span></div><div class="history-note" style="margin-top:12px">Use the week picker to view previous weeks.</div>`;
+    renderAnalytics(fs,diag);
+    renderHistoryStrip(doneAll,totalAll,pctAll);
   }
 
   // ── DRAG & DROP ────────────────────────────────────────
@@ -806,14 +921,20 @@
               taskLeft.appendChild(pip);taskLeft.appendChild(check);taskLeft.appendChild(content);
               row.appendChild(taskLeft);
               if(!isReadOnly){
-                const delBtn=document.createElement('div');delBtn.className='delete-task-btn';delBtn.textContent='×';
-                delBtn.addEventListener('click',async(e)=>{e.stopPropagation();const confirmed=await showConfirm('DELETE TASK','Permanently delete this task?');if(!confirmed)return;const taskCopy={...task};const isCustom=!!taskCopy.dayKey;if(isCustom)customTasks=customTasks.filter(t=>t.id!==task.id);state.deleted[task.id]=true;if(isCustom)await syncCustomTasks();await syncDeleted(task.id);pushUndo(`Deleted "${task.text.substring(0,30)}"`,async()=>{state.deleted[task.id]=false;if(isCustom){customTasks.push(taskCopy);await syncCustomTasks();}await syncRow({id:`deleted_${task.id}`,is_done:false,counter_val:null,updated_at:new Date().toISOString()});});executeRenderCycles();});
-                row.appendChild(delBtn);
+                const actions=document.createElement('div');actions.className='task-actions';
+                const editBtn=document.createElement('button');editBtn.type='button';editBtn.className='task-action-btn';editBtn.textContent='Edit';editBtn.title='Edit task';
+                editBtn.addEventListener('click',(e)=>{e.stopPropagation();openTaskModal('edit',task);});
+                const copyBtn=document.createElement('button');copyBtn.type='button';copyBtn.className='task-action-btn';copyBtn.textContent='Copy';copyBtn.title='Duplicate task';
+                copyBtn.addEventListener('click',async(e)=>{e.stopPropagation();await duplicateTask(task,day.key);});
+                const archiveBtn=document.createElement('button');archiveBtn.type='button';archiveBtn.className='task-action-btn danger';archiveBtn.textContent='Archive';archiveBtn.title='Archive task';
+                archiveBtn.addEventListener('click',async(e)=>{e.stopPropagation();await archiveTask(task);});
+                actions.appendChild(editBtn);actions.appendChild(copyBtn);actions.appendChild(archiveBtn);
+                row.appendChild(actions);
               }
               item.appendChild(row);makeDraggable(item,task.id,day.key);
               if(!isReadOnly){
                 item.addEventListener('click',async(e)=>{
-                  if(e.target===notesInput||e.target.classList.contains('delete-task-btn'))return;
+                  if(e.target===notesInput||e.target.closest('.task-actions'))return;
                   if(drawer.classList.contains('open')&&e.target.closest('.task-notes-drawer'))return;
                   const isCheckClick=e.target.closest('.task-check')||e.target.closest('.brand-pip')||e.target.closest('.task-text');
                   if(isCheckClick||state.completions[task.id]){
@@ -863,16 +984,16 @@
   document.getElementById('resetBtn').addEventListener('click',async()=>{if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be reset.');return;}const confirmed=await showConfirm('RESET WEEK','This will wipe all completions, custom tasks, and cloud data for this week. Cannot be undone.');if(!confirmed)return;state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));await clearCurrentWeekCloud();executeRenderCycles();});
 
   const modal=document.getElementById('taskModal');
-  document.getElementById('addTaskBtn').addEventListener('click',()=>{if(isReadOnly)return;const daySelect=document.getElementById('modDay');daySelect.innerHTML='';getWeekDays(currentWeekKey).forEach(d=>{daySelect.innerHTML+=`<option value="${d.key}">${d.label}</option>`;});daySelect.value=activeDayTab;document.getElementById('modText').value='';document.getElementById('modTime').value='';document.getElementById('modRecurring').checked=false;document.getElementById('modBrand').value='cp';document.getElementById('modType').value='production';modal.style.display='flex';});
-  document.getElementById('modCancel').addEventListener('click',()=>modal.style.display='none');
-  document.getElementById('modSave').addEventListener('click',async()=>{const txt=document.getElementById('modText').value.trim();if(!txt){await showConfirm('MISSING INPUT','Task description cannot be empty.');return;}const isRecurring=document.getElementById('modRecurring').checked;const newTask={id:'custom_'+Date.now(),dayKey:document.getElementById('modDay').value,brand:document.getElementById('modBrand').value,text:txt,time:document.getElementById('modTime').value.trim()||'Anytime',oneTime:false,recurring:isRecurring,taskType:document.getElementById('modType').value};if(isRecurring){recurringTasks.push(newTask);await syncRecurringTasks();}else{customTasks.push(newTask);await syncCustomTasks();}modal.style.display='none';executeRenderCycles();});
+  document.getElementById('addTaskBtn').addEventListener('click',()=>{if(isReadOnly)return;openTaskModal('add');});
+  document.getElementById('modCancel').addEventListener('click',()=>{editingTaskContext=null;modal.style.display='none';});
+  document.getElementById('modSave').addEventListener('click',async()=>{const saved=await saveTaskFromModal();if(!saved)return;editingTaskContext=null;modal.style.display='none';executeRenderCycles();});
 
   // ── BOOT ───────────────────────────────────────────────
   function boot(){
     const modeParam=new URLSearchParams(window.location.search).get('view');
     if(modeParam==='day'){currentLayoutView='day';document.getElementById('viewLayoutSwitch').value='day';}
     buildWeekPicker();isReadOnly=false;updateOnlineStatus();
-    runClockTick();runAlarmDaemon();showLoadingGrid();fetchCloudState();initRealtime();
+    runClockTick();runAlarmDaemon();showLoadingGrid();fetchCloudState();fetchHistoryAnalytics();initRealtime();
   }
 
   boot();
