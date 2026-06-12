@@ -99,6 +99,12 @@
         <div class="macro-title">Brand Track Diagnostics</div>
         <div id="brandMetricsAnchor"></div>
       </div>
+      <div class="analytics-card">
+        <div class="macro-title">Analytics</div>
+        <div class="analytics-grid" id="analyticsGrid"></div>
+        <div class="analytics-subtitle">Daily Flow</div>
+        <div class="day-analytics-list" id="dayAnalyticsAnchor"></div>
+      </div>
       <div class="reupload-running-block">
         <div class="reupload-running-title">Weekly Cumulative Reuploads</div>
         <div class="reupload-running-count" id="reuploadRunningCount">0</div>
@@ -170,6 +176,11 @@
         <div class="settings-label">Local Recovery</div>
         <div class="settings-copy">If a change gets stuck after reconnecting, clear only the saved offline queue. Your visible tracker data stays untouched.</div>
         <button class="action-btn danger" id="clearQueueBtn">Clear Offline Queue</button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label">Archive Bin</div>
+        <div class="settings-copy">Archived tasks are hidden from the tracker but can be restored here.</div>
+        <div class="archive-list" id="archiveList"></div>
       </div>
       <button class="action-btn" id="settingsCloseBtn">Close</button>
     </div>

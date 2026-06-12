@@ -67,7 +67,7 @@
 
   // ── STATE ──────────────────────────────────────────────
   let state={completions:{},counters:{},skipped:{},deleted:{},order:{}};
-  let customTasks=[],recurringTasks=[],taskNotes={};
+  let customTasks=[],recurringTasks=[],taskNotes={},archivedTasks=[];
   let openDrawerTaskId=null;
   let editingTaskContext=null;
   const MEETING_OFFSET_KEY='enigma_meeting_offset_v2', ALERTED_KEY='enigma_alerted_session_v2';
@@ -154,13 +154,14 @@
       const res=await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${currentWeekKey}&select=*`,{headers:SB_HEADERS});
       const data=await res.json();
       state={completions:{},counters:{},skipped:{},deleted:{},order:{}};
-      customTasks=[];recurringTasks=[];taskNotes={};
+      customTasks=[];recurringTasks=[];taskNotes={};archivedTasks=[];
       if(Array.isArray(data)){
         data.forEach(row=>{
           const id=row.id;
           if(id===`blob_custom_tasks_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))customTasks=p;}catch{}return;}
           if(id==='blob_recurring_tasks'){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))recurringTasks=p;}catch{}return;}
           if(id===`blob_task_notes_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(p&&typeof p==='object'&&!Array.isArray(p))taskNotes=p;}catch{}return;}
+          if(id===`blob_archived_tasks_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))archivedTasks=p;}catch{}return;}
           if(id.startsWith('skip_day_')){state.skipped[id.replace('skip_day_','')]=Boolean(row.is_done);return;}
           if(id.startsWith('deleted_')){state.deleted[id.replace('deleted_','')]=Boolean(row.is_done);return;}
           if(id.startsWith('order_')){try{state.order[id.replace('order_','')]=JSON.parse(row.text_val);}catch{}return;}
@@ -208,6 +209,7 @@
   async function syncCustomTasks(){await syncRow({id:`blob_custom_tasks_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(customTasks),updated_at:new Date().toISOString()});}
   async function syncRecurringTasks(){await syncRow({id:'blob_recurring_tasks',week_key:'global',is_done:false,counter_val:null,text_val:JSON.stringify(recurringTasks),updated_at:new Date().toISOString()});}
   async function syncNotes(){await syncRow({id:`blob_task_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(taskNotes),updated_at:new Date().toISOString()});}
+  async function syncArchivedTasks(){await syncRow({id:`blob_archived_tasks_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(archivedTasks),updated_at:new Date().toISOString()});}
   async function syncOrder(dayKey){await syncRow({id:`order_${dayKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(state.order[dayKey]||[]),updated_at:new Date().toISOString()});}
   async function clearCurrentWeekCloud(){setSyncStatus('pending');try{await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${currentWeekKey}`,{method:'DELETE',headers:SB_HEADERS});setSyncStatus('ok');}catch(e){setSyncStatus('fail');}}
 
@@ -295,18 +297,80 @@
     const confirmed=await showConfirm('ARCHIVE TASK','Hide this task from the current tracker?');
     if(!confirmed)return;
     const taskCopy={...task};const found=findEditableTask(task.id);
+    const archiveEntry={...taskCopy,archivedAt:new Date().toISOString(),source:found.source};
     if(found.source==='custom')customTasks=customTasks.filter(t=>t.id!==task.id);
     if(found.source==='recurring')recurringTasks=recurringTasks.filter(t=>t.id!==task.id);
     state.deleted[task.id]=true;
-    await syncCustomTasks();await syncRecurringTasks();await syncDeleted(task.id);
+    archivedTasks=[archiveEntry,...archivedTasks.filter(t=>t.id!==task.id)];
+    await syncCustomTasks();await syncRecurringTasks();await syncArchivedTasks();await syncDeleted(task.id);
     pushUndo(`Archived "${task.text.substring(0,30)}"`,async()=>{
       state.deleted[task.id]=false;
       if(found.source==='custom')customTasks.push(taskCopy);
       if(found.source==='recurring')recurringTasks.push(taskCopy);
-      await syncCustomTasks();await syncRecurringTasks();
+      archivedTasks=archivedTasks.filter(t=>t.id!==task.id);
+      await syncCustomTasks();await syncRecurringTasks();await syncArchivedTasks();
       await syncRow({id:`deleted_${task.id}`,is_done:false,counter_val:null,updated_at:new Date().toISOString()});
     });
     executeRenderCycles();
+  }
+
+  async function restoreArchivedTask(taskId){
+    const archived=archivedTasks.find(t=>t.id===taskId);
+    if(!archived)return;
+    const restored={...archived};
+    delete restored.archivedAt;delete restored.source;
+    archivedTasks=archivedTasks.filter(t=>t.id!==taskId);
+    state.deleted[taskId]=false;
+    if(archived.source==='recurring'||restored.recurring)recurringTasks.push(restored);
+    else if(archived.source==='custom'||restored.dayKey)customTasks.push(restored);
+    await syncArchivedTasks();await syncCustomTasks();await syncRecurringTasks();
+    await syncRow({id:`deleted_${taskId}`,is_done:false,counter_val:null,updated_at:new Date().toISOString()});
+    pushUndo(`Restored "${restored.text.substring(0,30)}"`,async()=>{
+      customTasks=customTasks.filter(t=>t.id!==taskId);
+      recurringTasks=recurringTasks.filter(t=>t.id!==taskId);
+      state.deleted[taskId]=true;
+      archivedTasks=[archived,...archivedTasks.filter(t=>t.id!==taskId)];
+      await syncArchivedTasks();await syncCustomTasks();await syncRecurringTasks();await syncDeleted(taskId);
+      renderArchiveBin();
+    });
+    executeRenderCycles();renderArchiveBin();
+  }
+
+  async function deleteArchivedTaskForever(taskId){
+    const archived=archivedTasks.find(t=>t.id===taskId);
+    if(!archived)return;
+    const confirmed=await showConfirm('DELETE FOREVER','Permanently remove this archived task from the archive bin?');
+    if(!confirmed)return;
+    archivedTasks=archivedTasks.filter(t=>t.id!==taskId);
+    await syncArchivedTasks();
+    pushUndo(`Deleted archived "${archived.text.substring(0,30)}"`,async()=>{archivedTasks=[archived,...archivedTasks];await syncArchivedTasks();renderArchiveBin();});
+    renderArchiveBin();
+  }
+
+  function renderArchiveBin(){
+    const list=document.getElementById('archiveList');
+    if(!list)return;
+    list.innerHTML='';
+    if(!archivedTasks.length){
+      const empty=document.createElement('div');empty.className='archive-empty';empty.textContent='No archived tasks yet.';
+      list.appendChild(empty);return;
+    }
+    archivedTasks.forEach(task=>{
+      const row=document.createElement('div');row.className='archive-row';
+      const info=document.createElement('div');
+      const title=document.createElement('div');title.className='archive-title';title.textContent=task.text||'Untitled task';
+      const meta=document.createElement('div');meta.className='archive-meta';
+      const brand=BRAND_LABELS[task.brand]||task.brand||'Task';
+      meta.textContent=`${brand} · ${task.dayKey||'week'} · ${task.time||'Anytime'}`;
+      info.appendChild(title);info.appendChild(meta);
+      const actions=document.createElement('div');actions.className='archive-actions';
+      const restore=document.createElement('button');restore.type='button';restore.className='task-action-btn';restore.textContent='Restore';
+      restore.addEventListener('click',async()=>restoreArchivedTask(task.id));
+      const del=document.createElement('button');del.type='button';del.className='task-action-btn danger';del.textContent='Delete';
+      del.addEventListener('click',async()=>deleteArchivedTaskForever(task.id));
+      actions.appendChild(restore);actions.appendChild(del);
+      row.appendChild(info);row.appendChild(actions);list.appendChild(row);
+    });
   }
 
   // ── REALTIME ───────────────────────────────────────────
@@ -967,6 +1031,7 @@
     if(!el)return;
     const queueText=syncQueue.length===0?'No saved offline changes.':`${syncQueue.length} saved change${syncQueue.length===1?'':'s'} waiting to sync.`;
     el.textContent=`${navigator.onLine?'Online':'Offline'} · ${queueText}`;
+    renderArchiveBin();
   }
 
   // ── EVENTS ─────────────────────────────────────────────
@@ -981,7 +1046,7 @@
     if(!confirmed)return;
     syncQueue=[];persistSyncQueue();setSyncStatus('ok');updateOnlineStatus();updateSettingsPanel();
   });
-  document.getElementById('resetBtn').addEventListener('click',async()=>{if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be reset.');return;}const confirmed=await showConfirm('RESET WEEK','This will wipe all completions, custom tasks, and cloud data for this week. Cannot be undone.');if(!confirmed)return;state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));await clearCurrentWeekCloud();executeRenderCycles();});
+  document.getElementById('resetBtn').addEventListener('click',async()=>{if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be reset.');return;}const confirmed=await showConfirm('RESET WEEK','This will wipe all completions, custom tasks, archived tasks, and cloud data for this week. Cannot be undone.');if(!confirmed)return;state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};archivedTasks=[];alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));await clearCurrentWeekCloud();executeRenderCycles();});
 
   const modal=document.getElementById('taskModal');
   document.getElementById('addTaskBtn').addEventListener('click',()=>{if(isReadOnly)return;openTaskModal('add');});
