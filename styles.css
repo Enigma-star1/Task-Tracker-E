@@ -335,6 +335,8 @@
     .brief-tile.warning .brief-tile-value { color:#FCA5A5; }
     .brief-tile.good .brief-tile-value { color:var(--pray); }
     .brief-tile.attention .brief-tile-value { color:var(--accent-gold); }
+    .report-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .report-actions .action-btn { min-width:130px; }
     .macro-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:24px; }
     .macro-title { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:#fff; margin-bottom:18px; border-bottom:1px solid var(--border); padding-bottom:10px; }
     .analytics-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:24px; }

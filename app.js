@@ -830,6 +830,81 @@
     histAnchor.appendChild(strip);
   }
 
+  function getReportData(){
+    const fs=buildSchedule();
+    const weekDays=getWeekDays(currentWeekKey);
+    const start=new Date(weekDays[0].date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const end=new Date(weekDays[6].date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const diag={cp:{total:0,done:0},tratun:{total:0,done:0},studio:{total:0,done:0},pray:{total:0,done:0},meet:{total:0,done:0},school:{total:0,done:0}};
+    const rows=[];let reuploads=0,carryOpen=0,overdue=0;
+    const now=getCurrentTimeStr(),today=getToday();
+    fs.forEach(day=>{
+      const tasks=getComputedDayTasks(day,fs);
+      tasks.forEach(task=>{
+        const done=task.isCounter?(state.counters[task.id]||0)>0:!!state.completions[task.id];
+        if(task.isCounter)reuploads+=(state.counters[task.id]||0);
+        if(task.isCarriedForward&&!done)carryOpen++;
+        if(day.date===today&&!done&&parseTimeString(task.time)&&parseTimeString(task.time)<now)overdue++;
+        if(!task.isCounter&&diag[task.brand]){diag[task.brand].total++;if(done)diag[task.brand].done++;}
+        rows.push({
+          day:day.label,date:day.date,brand:BRAND_LABELS[task.brand]||task.brand||'Task',
+          text:task.text,time:task.time||'Anytime',status:done?'Done':'Open',
+          type:task.taskType||'task',tags:[task.recurring?'Recurring':'',task.oneTime?'One-time':'',task.isCarriedForward?'Carry':''].filter(Boolean).join(' ')
+        });
+      });
+    });
+    const total=rows.length,done=rows.filter(r=>r.status==='Done').length;
+    return{range:`${start} - ${end}`,weekKey:currentWeekKey,rows,diag,total,done,pct:total?Math.round((done/total)*100):0,reuploads,carryOpen,overdue,archivedCount:archivedTasks.length};
+  }
+
+  function csvEscape(v){
+    const s=String(v??'');
+    return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;
+  }
+
+  function downloadWeeklyReportCsv(){
+    const report=getReportData();
+    const summary=[
+      ['Week',report.range],['Completion',`${report.done}/${report.total}`],['Completion %',`${report.pct}%`],
+      ['Reuploads',report.reuploads],['Carry Open',report.carryOpen],['Overdue',report.overdue],['Archived',report.archivedCount],[]
+    ];
+    const taskHeader=['Day','Date','Brand','Task','Time','Status','Type','Tags'];
+    const taskRows=report.rows.map(r=>[r.day,r.date,r.brand,r.text,r.time,r.status,r.type,r.tags]);
+    const lines=[...summary,taskHeader,...taskRows].map(row=>row.map(csvEscape).join(',')).join('\n');
+    const blob=new Blob([lines],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`enigma-weekly-report-${report.weekKey}.csv`;
+    document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  }
+
+  function printWeeklyReport(){
+    const report=getReportData();
+    const brandRows=Object.entries(report.diag).map(([brand,m])=>`<tr><td>${BRAND_LABELS[brand]}</td><td>${m.done}/${m.total}</td><td>${m.total?Math.round((m.done/m.total)*100):0}%</td></tr>`).join('');
+    const taskRows=report.rows.map(r=>`<tr><td>${r.day}</td><td>${r.brand}</td><td>${r.text}</td><td>${r.time}</td><td>${r.status}</td><td>${r.tags}</td></tr>`).join('');
+    const html=`<!doctype html><html><head><title>ENIGMA Weekly Report</title><style>
+      body{font-family:Arial,sans-serif;color:#17131b;margin:32px;line-height:1.4}h1{margin:0 0 4px}h2{margin-top:28px}
+      .meta{color:#666;margin-bottom:20px}.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}
+      .tile{border:1px solid #ddd;padding:12px;border-radius:8px}.value{font-size:28px;font-weight:800}
+      table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}th{background:#f4f1f6}
+      @media print{body{margin:18mm}.no-print{display:none}.tiles{grid-template-columns:repeat(4,1fr)}}
+    </style></head><body>
+      <button class="no-print" onclick="window.print()">Print / Save PDF</button>
+      <h1>ENIGMA Weekly Report</h1><div class="meta">${report.range}</div>
+      <div class="tiles">
+        <div class="tile"><div>Completion</div><div class="value">${report.pct}%</div><div>${report.done}/${report.total} tasks</div></div>
+        <div class="tile"><div>Reuploads</div><div class="value">${report.reuploads}</div></div>
+        <div class="tile"><div>Carry Open</div><div class="value">${report.carryOpen}</div></div>
+        <div class="tile"><div>Archived</div><div class="value">${report.archivedCount}</div></div>
+      </div>
+      <h2>Brand Breakdown</h2><table><thead><tr><th>Brand</th><th>Done</th><th>Completion</th></tr></thead><tbody>${brandRows}</tbody></table>
+      <h2>Tasks</h2><table><thead><tr><th>Day</th><th>Brand</th><th>Task</th><th>Time</th><th>Status</th><th>Tags</th></tr></thead><tbody>${taskRows}</tbody></table>
+    </body></html>`;
+    const win=window.open('','_blank');
+    if(!win){showConfirm('POPUP BLOCKED','Allow popups for this site to open the printable report.');return;}
+    win.document.write(html);win.document.close();win.focus();
+  }
+
   function renderSummary(){
     const anchor=document.getElementById('brandMetricsAnchor');anchor.innerHTML='';
     const fs=buildSchedule();let reuploadSum=0;
@@ -1039,6 +1114,8 @@
   document.getElementById('brandFilter').addEventListener('change',(e)=>{selectedBrandFilter=e.target.value;renderGrid();});
   document.getElementById('meetingOffsetConfig').addEventListener('change',(e)=>{currentMeetingOffset=parseInt(e.target.value,10);localStorage.setItem(MEETING_OFFSET_KEY,currentMeetingOffset.toString());alertedTasks={};sessionStorage.setItem(ALERTED_KEY,JSON.stringify(alertedTasks));});
   document.getElementById('summaryViewToggleBtn').addEventListener('click',(e)=>{summaryLayoutVisible=!summaryLayoutVisible;e.target.classList.toggle('active-view-btn',summaryLayoutVisible);executeRenderCycles();});
+  document.getElementById('downloadCsvBtn').addEventListener('click',downloadWeeklyReportCsv);
+  document.getElementById('printReportBtn').addEventListener('click',printWeeklyReport);
   document.getElementById('settingsBtn').addEventListener('click',()=>{updateSettingsPanel();document.getElementById('settingsModal').style.display='flex';});
   document.getElementById('settingsCloseBtn').addEventListener('click',()=>document.getElementById('settingsModal').style.display='none');
   document.getElementById('clearQueueBtn').addEventListener('click',async()=>{
