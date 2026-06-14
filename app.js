@@ -68,7 +68,10 @@
   // ── STATE ──────────────────────────────────────────────
   let state={completions:{},counters:{},skipped:{},deleted:{},order:{}};
   let customTasks=[],recurringTasks=[],taskNotes={},archivedTasks=[];
+  let weeklyNotes='';
+  let brainDumpNotes=[],brainDumpSuggestions=[],selectedBrainDumpBrand='general',activeBrainDumpTab='capture';
   let openDrawerTaskId=null;
+  let weeklyNotesSaveTimer=null;
   let editingTaskContext=null;
   const MEETING_OFFSET_KEY='enigma_meeting_offset_v2', ALERTED_KEY='enigma_alerted_session_v2';
   const MISSED_DISMISSED_KEY='enigma_missed_dismissed';
@@ -102,8 +105,9 @@
 
   document.getElementById('weekPicker').addEventListener('change',async(e)=>{
     currentWeekKey=e.target.value;isReadOnly=currentWeekKey!==getSaturdayAnchor(getToday());
-    state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};openDrawerTaskId=null;
+    state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];openDrawerTaskId=null;
     missedBannerDismissed=false;
+    closeWeeklyNotesDrawer();updateWeeklyNotesDrawer();
     showLoadingGrid();await fetchCloudState();fetchHistoryAnalytics();
   });
 
@@ -154,13 +158,15 @@
       const res=await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${currentWeekKey}&select=*`,{headers:SB_HEADERS});
       const data=await res.json();
       state={completions:{},counters:{},skipped:{},deleted:{},order:{}};
-      customTasks=[];recurringTasks=[];taskNotes={};archivedTasks=[];
+      customTasks=[];recurringTasks=[];taskNotes={};archivedTasks=[];weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];
       if(Array.isArray(data)){
         data.forEach(row=>{
           const id=row.id;
           if(id===`blob_custom_tasks_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))customTasks=p;}catch{}return;}
           if(id==='blob_recurring_tasks'){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))recurringTasks=p;}catch{}return;}
           if(id===`blob_task_notes_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(p&&typeof p==='object'&&!Array.isArray(p))taskNotes=p;}catch{}return;}
+          if(id===`blob_weekly_notes_${currentWeekKey}`){weeklyNotes=row.text_val||'';return;}
+          if(id===`blob_brain_dump_notes_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))brainDumpNotes=p;}catch{}return;}
           if(id===`blob_archived_tasks_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))archivedTasks=p;}catch{}return;}
           if(id.startsWith('skip_day_')){state.skipped[id.replace('skip_day_','')]=Boolean(row.is_done);return;}
           if(id.startsWith('deleted_')){state.deleted[id.replace('deleted_','')]=Boolean(row.is_done);return;}
@@ -174,7 +180,7 @@
       if(Array.isArray(recData)&&recData.length>0&&recData[0].text_val){try{const p=JSON.parse(recData[0].text_val);if(Array.isArray(p))recurringTasks=p;}catch{}}
       setSyncStatus('ok');
     }catch(e){console.error('Cloud pull error:',e);setSyncStatus('fail');}
-    finally{executeRenderCycles();}
+    finally{updateWeeklyNotesDrawer();executeRenderCycles();}
   }
 
   async function fetchHistoryAnalytics(){
@@ -209,9 +215,205 @@
   async function syncCustomTasks(){await syncRow({id:`blob_custom_tasks_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(customTasks),updated_at:new Date().toISOString()});}
   async function syncRecurringTasks(){await syncRow({id:'blob_recurring_tasks',week_key:'global',is_done:false,counter_val:null,text_val:JSON.stringify(recurringTasks),updated_at:new Date().toISOString()});}
   async function syncNotes(){await syncRow({id:`blob_task_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(taskNotes),updated_at:new Date().toISOString()});}
+  async function syncWeeklyNotes(){await syncRow({id:`blob_weekly_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:weeklyNotes,updated_at:new Date().toISOString()});}
+  async function syncBrainDumpNotes(){await syncRow({id:`blob_brain_dump_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(brainDumpNotes),updated_at:new Date().toISOString()});}
   async function syncArchivedTasks(){await syncRow({id:`blob_archived_tasks_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(archivedTasks),updated_at:new Date().toISOString()});}
   async function syncOrder(dayKey){await syncRow({id:`order_${dayKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(state.order[dayKey]||[]),updated_at:new Date().toISOString()});}
   async function clearCurrentWeekCloud(){setSyncStatus('pending');try{await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${currentWeekKey}`,{method:'DELETE',headers:SB_HEADERS});setSyncStatus('ok');}catch(e){setSyncStatus('fail');}}
+
+  function updateWeeklyNotesDrawer(){
+    const title=document.getElementById('weeklyNotesTitle');
+    const input=document.getElementById('weeklyNotesInput');
+    const status=document.getElementById('weeklyNotesStatus');
+    if(!input)return;
+    const days=getWeekDays(currentWeekKey);
+    const start=new Date(currentWeekKey+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const end=new Date(days[6].date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    title.textContent=`${start} - ${end}`;
+    input.value=weeklyNotes;
+    input.disabled=isReadOnly;
+    document.getElementById('saveBrainDumpBtn').disabled=isReadOnly;
+    document.getElementById('extractTasksBtn').disabled=isReadOnly;
+    status.textContent=isReadOnly?'Past week notes are read-only.':'Auto-saves with this week.';
+    setBrainDumpTab(activeBrainDumpTab);
+  }
+
+  function openWeeklyNotesDrawer(){
+    updateWeeklyNotesDrawer();
+    document.getElementById('weeklyNotesOverlay').classList.add('visible');
+    document.getElementById('weeklyNotesHandle').classList.add('hidden');
+    const drawer=document.getElementById('weeklyNotesDrawer');
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden','false');
+    if(!isReadOnly)setTimeout(()=>document.getElementById('weeklyNotesInput').focus(),80);
+  }
+
+  function closeWeeklyNotesDrawer(){
+    const overlay=document.getElementById('weeklyNotesOverlay');
+    const drawer=document.getElementById('weeklyNotesDrawer');
+    if(overlay)overlay.classList.remove('visible');
+    const handle=document.getElementById('weeklyNotesHandle');
+    if(handle)handle.classList.remove('hidden');
+    if(drawer){drawer.classList.remove('open');drawer.setAttribute('aria-hidden','true');}
+  }
+
+  function queueWeeklyNotesSave(){
+    const status=document.getElementById('weeklyNotesStatus');
+    if(status)status.textContent='Saving...';
+    clearTimeout(weeklyNotesSaveTimer);
+    weeklyNotesSaveTimer=setTimeout(async()=>{
+      await syncWeeklyNotes();
+      const nextStatus=document.getElementById('weeklyNotesStatus');
+      if(nextStatus)nextStatus.textContent='Saved with this week.';
+    },450);
+  }
+
+  function setBrainDumpTab(tab){
+    activeBrainDumpTab=tab;
+    document.querySelectorAll('.notes-drawer-tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.notesTab===tab));
+    document.getElementById('notesCapturePanel').style.display=tab==='capture'?'flex':'none';
+    document.getElementById('notesSavedPanel').style.display=tab==='saved'?'block':'none';
+    if(tab==='saved')renderBrainDumpNotes();
+  }
+
+  function renderBrainDumpNotes(){
+    const list=document.getElementById('brainDumpNotesList');
+    if(!list)return;
+    list.innerHTML='';
+    if(!brainDumpNotes.length){
+      const empty=document.createElement('div');empty.className='notes-empty';empty.textContent='No saved notes yet.';
+      list.appendChild(empty);return;
+    }
+    brainDumpNotes.forEach(note=>{
+      const row=document.createElement('div');row.className='brain-note-entry';
+      const head=document.createElement('div');head.className='brain-note-head';
+      const meta=document.createElement('div');meta.className='brain-note-meta';
+      const brand=document.createElement('span');brand.className=`brain-note-brand brand-${note.brand||'general'}`;brand.textContent=note.brand==='general'?'General':(BRAND_LABELS[note.brand]||note.brand);
+      const time=document.createElement('span');time.className='brain-note-time';time.textContent=new Date(note.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      meta.appendChild(brand);meta.appendChild(time);
+      const del=document.createElement('button');del.type='button';del.className='brain-note-delete';del.textContent='x';
+      del.disabled=isReadOnly;
+      del.title=isReadOnly?'Past week notes are read-only.':'Delete note';
+      del.addEventListener('click',async()=>{if(isReadOnly)return;brainDumpNotes=brainDumpNotes.filter(n=>n.id!==note.id);await syncBrainDumpNotes();renderBrainDumpNotes();});
+      head.appendChild(meta);head.appendChild(del);
+      const text=document.createElement('div');text.className='brain-note-text';text.textContent=note.text;
+      row.appendChild(head);row.appendChild(text);list.appendChild(row);
+    });
+  }
+
+  function inferBrainDumpBrand(text){
+    const t=text.toLowerCase();
+    if(selectedBrainDumpBrand!=='general')return selectedBrainDumpBrand;
+    if(/\b(cp|career ?paddy|course|blog|meta|ally|admin portal)\b/.test(t))return'cp';
+    if(/\b(tratun|debbie|oil|gas)\b/.test(t))return'tratun';
+    if(/\b(studio|photoshop|design brand)\b/.test(t))return'studio';
+    if(/\b(pray|scripture|faith|youtube|instagram)\b/.test(t))return'pray';
+    if(/\b(meet|meeting|call|interview|appointment)\b/.test(t))return'meet';
+    if(/\b(school|assignment|test|exam|unilesa|lecture)\b/.test(t))return'school';
+    return'cp';
+  }
+
+  function inferBrainDumpDay(text){
+    const t=text.toLowerCase();
+    const days={sat:['sat','saturday'],sun:['sun','sunday'],mon:['mon','monday'],tue:['tue','tuesday'],wed:['wed','wednesday'],thu:['thu','thursday'],fri:['fri','friday']};
+    for(const [key,words] of Object.entries(days)){if(words.some(w=>t.includes(w)))return key;}
+    if(t.includes('tomorrow')){
+      const keys=['sun','mon','tue','wed','thu','fri','sat'];
+      return keys[new Date().getDay()];
+    }
+    if(t.includes('today')){
+      const today=getWeekDays(currentWeekKey).find(d=>d.date===getToday());
+      return today?.key||activeDayTab;
+    }
+    return activeDayTab;
+  }
+
+  function inferBrainDumpTime(text){
+    const match=text.match(/\b(before\s+\d{1,2}(:\d{2})?\s*(am|pm)?|\d{1,2}(:\d{2})?\s*(am|pm)|morning|afternoon|evening|night|anytime)\b/i);
+    return match?match[0]:'Anytime';
+  }
+
+  function cleanBrainDumpTitle(text){
+    return text
+      .replace(/\b(today|tomorrow|on\s+(sat|sun|mon|tue|wed|thu|fri)(urday|day|sday|nesday|rsday)?|before\s+\d{1,2}(:\d{2})?\s*(am|pm)?|\d{1,2}(:\d{2})?\s*(am|pm))\b/ig,'')
+      .replace(/^(i need to|need to|remember to|please|also|and|then|todo:?|task:?)/i,'')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+
+  function extractBrainDumpTasks(){
+    const text=document.getElementById('weeklyNotesInput').value.trim();
+    if(!text){setWeeklyNotesStatus('Write something first.');return;}
+    const chunks=text.split(/\n|;|\.|,(?=\s*(and\s+)?(write|create|send|call|meet|post|upload|edit|finish|start|rework|design|cook|wash|read|study|submit|record|brainstorm)\b)/i)
+      .map(s=>s.trim()).filter(s=>s&&s.length>2);
+    const actionWords=/\b(write|create|send|call|meet|post|upload|edit|finish|start|rework|design|cook|wash|read|study|submit|record|brainstorm|prepare|review|draft|publish|dance|interview)\b/i;
+    const seen=new Set();
+    brainDumpSuggestions=chunks
+      .filter(chunk=>actionWords.test(chunk)||chunks.length===1)
+      .map(chunk=>{
+        const title=cleanBrainDumpTitle(chunk).slice(0,90)||chunk.slice(0,90);
+        const key=title.toLowerCase();
+        if(seen.has(key))return null;
+        seen.add(key);
+        const hasTime=/\b(before\s+\d{1,2}|\d{1,2}(:\d{2})?\s*(am|pm)|meeting|call|interview|appointment)\b/i.test(chunk);
+        return{id:'suggest_'+Date.now()+'_'+seen.size,title,brand:inferBrainDumpBrand(chunk),day:inferBrainDumpDay(chunk),time:inferBrainDumpTime(chunk),taskType:hasTime?'time-anchored':'production'};
+      }).filter(Boolean).slice(0,8);
+    renderBrainDumpSuggestions();
+    setWeeklyNotesStatus(brainDumpSuggestions.length?`${brainDumpSuggestions.length} task${brainDumpSuggestions.length===1?'':'s'} extracted.`:'No clear tasks found. Try writing action words like create, send, call, finish.');
+  }
+
+  function setWeeklyNotesStatus(message){
+    const status=document.getElementById('weeklyNotesStatus');
+    if(status)status.textContent=message;
+  }
+
+  function renderBrainDumpSuggestions(){
+    const area=document.getElementById('notesSuggestionsArea');
+    if(!area)return;
+    area.innerHTML='';
+    if(!brainDumpSuggestions.length)return;
+    const panel=document.createElement('div');panel.className='notes-suggestions-panel';
+    const head=document.createElement('div');head.className='notes-suggestions-head';head.textContent=`${brainDumpSuggestions.length} extracted task${brainDumpSuggestions.length===1?'':'s'} - review and push`;
+    panel.appendChild(head);
+    brainDumpSuggestions.forEach(s=>{
+      const card=document.createElement('div');card.className='notes-suggestion-card';
+      const title=document.createElement('div');title.className='notes-suggestion-title';title.textContent=s.title;
+      const meta=document.createElement('div');meta.className='notes-suggestion-meta';
+      const daySelect=document.createElement('select');daySelect.className='notes-suggestion-select';
+      getWeekDays(currentWeekKey).forEach(d=>{const opt=document.createElement('option');opt.value=d.key;opt.textContent=d.label;opt.selected=d.key===s.day;daySelect.appendChild(opt);});
+      const brandSelect=document.createElement('select');brandSelect.className='notes-suggestion-select';
+      Object.keys(BRAND_LABELS).forEach(key=>{const opt=document.createElement('option');opt.value=key;opt.textContent=BRAND_LABELS[key];opt.selected=key===s.brand;brandSelect.appendChild(opt);});
+      const timeInput=document.createElement('input');timeInput.className='notes-suggestion-input';timeInput.value=s.time||'Anytime';timeInput.placeholder='Time';
+      meta.appendChild(daySelect);meta.appendChild(brandSelect);meta.appendChild(timeInput);
+      const actions=document.createElement('div');actions.className='notes-suggestion-actions';
+      const push=document.createElement('button');push.type='button';push.className='notes-push-btn';push.textContent='Push to Tracker';
+      push.addEventListener('click',async()=>{
+        const task={id:'custom_'+Date.now(),dayKey:daySelect.value,brand:brandSelect.value,text:s.title,time:timeInput.value.trim()||'Anytime',oneTime:false,recurring:false,taskType:s.taskType||'production'};
+        customTasks.push(task);await syncCustomTasks();
+        brainDumpSuggestions=brainDumpSuggestions.filter(item=>item.id!==s.id);
+        pushUndo(`Added "${task.text.substring(0,30)}"`,async()=>{customTasks=customTasks.filter(t=>t.id!==task.id);await syncCustomTasks();executeRenderCycles();});
+        renderBrainDumpSuggestions();executeRenderCycles();setWeeklyNotesStatus(`Pushed "${task.text}" to tracker.`);
+      });
+      const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='notes-dismiss-btn';dismiss.textContent='Dismiss';
+      dismiss.addEventListener('click',()=>{brainDumpSuggestions=brainDumpSuggestions.filter(item=>item.id!==s.id);renderBrainDumpSuggestions();});
+      actions.appendChild(push);actions.appendChild(dismiss);
+      card.appendChild(title);card.appendChild(meta);card.appendChild(actions);panel.appendChild(card);
+    });
+    area.appendChild(panel);
+  }
+
+  async function saveBrainDumpNote(){
+    const input=document.getElementById('weeklyNotesInput');
+    const text=input.value.trim();
+    if(!text){setWeeklyNotesStatus('Nothing to save.');return;}
+    brainDumpNotes=[{id:'note_'+Date.now(),brand:selectedBrainDumpBrand,text,createdAt:new Date().toISOString()},...brainDumpNotes];
+    weeklyNotes='';
+    input.value='';
+    brainDumpSuggestions=[];
+    document.getElementById('notesSuggestionsArea').innerHTML='';
+    await syncBrainDumpNotes();await syncWeeklyNotes();
+    setWeeklyNotesStatus('Note saved.');
+  }
 
   function findEditableTask(taskId){
     const customIndex=customTasks.findIndex(t=>t.id===taskId);
@@ -1116,6 +1318,26 @@
   document.getElementById('summaryViewToggleBtn').addEventListener('click',(e)=>{summaryLayoutVisible=!summaryLayoutVisible;e.target.classList.toggle('active-view-btn',summaryLayoutVisible);executeRenderCycles();});
   document.getElementById('downloadCsvBtn').addEventListener('click',downloadWeeklyReportCsv);
   document.getElementById('printReportBtn').addEventListener('click',printWeeklyReport);
+  document.getElementById('weeklyNotesBtn').addEventListener('click',openWeeklyNotesDrawer);
+  document.getElementById('weeklyNotesHandle').addEventListener('click',openWeeklyNotesDrawer);
+  document.getElementById('weeklyNotesCloseBtn').addEventListener('click',closeWeeklyNotesDrawer);
+  document.getElementById('weeklyNotesOverlay').addEventListener('click',closeWeeklyNotesDrawer);
+  document.getElementById('weeklyNotesInput').addEventListener('input',(e)=>{
+    if(isReadOnly)return;
+    weeklyNotes=e.target.value;
+    queueWeeklyNotesSave();
+  });
+  document.querySelectorAll('.notes-drawer-tab').forEach(btn=>btn.addEventListener('click',()=>setBrainDumpTab(btn.dataset.notesTab)));
+  document.getElementById('notesBrandSelector').addEventListener('click',(e)=>{
+    const chip=e.target.closest('.notes-brand-chip');
+    if(!chip||isReadOnly)return;
+    document.querySelectorAll('.notes-brand-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    selectedBrainDumpBrand=chip.dataset.brand;
+  });
+  document.getElementById('saveBrainDumpBtn').addEventListener('click',saveBrainDumpNote);
+  document.getElementById('extractTasksBtn').addEventListener('click',extractBrainDumpTasks);
+  document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closeWeeklyNotesDrawer();});
   document.getElementById('settingsBtn').addEventListener('click',()=>{updateSettingsPanel();document.getElementById('settingsModal').style.display='flex';});
   document.getElementById('settingsCloseBtn').addEventListener('click',()=>document.getElementById('settingsModal').style.display='none');
   document.getElementById('clearQueueBtn').addEventListener('click',async()=>{
@@ -1123,7 +1345,7 @@
     if(!confirmed)return;
     syncQueue=[];persistSyncQueue();setSyncStatus('ok');updateOnlineStatus();updateSettingsPanel();
   });
-  document.getElementById('resetBtn').addEventListener('click',async()=>{if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be reset.');return;}const confirmed=await showConfirm('RESET WEEK','This will wipe all completions, custom tasks, archived tasks, and cloud data for this week. Cannot be undone.');if(!confirmed)return;state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};archivedTasks=[];alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));await clearCurrentWeekCloud();executeRenderCycles();});
+  document.getElementById('resetBtn').addEventListener('click',async()=>{if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be reset.');return;}const confirmed=await showConfirm('RESET WEEK','This will wipe all completions, custom tasks, notes, archived tasks, and cloud data for this week. Cannot be undone.');if(!confirmed)return;state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];archivedTasks=[];alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));closeWeeklyNotesDrawer();updateWeeklyNotesDrawer();await clearCurrentWeekCloud();executeRenderCycles();});
 
   const modal=document.getElementById('taskModal');
   document.getElementById('addTaskBtn').addEventListener('click',()=>{if(isReadOnly)return;openTaskModal('add');});

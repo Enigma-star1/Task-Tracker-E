@@ -42,6 +42,7 @@
           <option value="30">Meet Alert: 30m</option>
         </select>
         <button class="action-btn" id="summaryViewToggleBtn">Summary</button>
+        <button class="action-btn" id="weeklyNotesBtn">Notes</button>
         <button class="action-btn" id="addTaskBtn">+ Task</button>
         <button class="action-btn" id="settingsBtn">Settings</button>
         <button class="action-btn danger" id="resetBtn">Reset</button>
@@ -136,6 +137,57 @@
     <span id="undoToastMsg">Action undone</span>
     <span class="undo-btn" id="undoBtnEl">UNDO</span>
   </div>
+
+  <button class="notes-drawer-handle" id="weeklyNotesHandle" type="button" title="Open Brain Dump" aria-label="Open Brain Dump">
+    <span></span>
+  </button>
+  <div class="notes-overlay" id="weeklyNotesOverlay"></div>
+  <aside class="weekly-notes-drawer" id="weeklyNotesDrawer" aria-hidden="true">
+    <div class="weekly-notes-head">
+      <div>
+        <div class="weekly-notes-kicker">Capture - Extract - Push</div>
+        <div class="weekly-notes-title" id="weeklyNotesTitle">Brain Dump</div>
+      </div>
+      <button class="notes-close-btn" id="weeklyNotesCloseBtn" type="button">Close</button>
+    </div>
+
+    <div class="notes-drawer-tabs">
+      <button class="notes-drawer-tab active" type="button" data-notes-tab="capture">Capture</button>
+      <button class="notes-drawer-tab" type="button" data-notes-tab="saved">Saved Notes</button>
+    </div>
+
+    <div class="notes-capture-panel" id="notesCapturePanel">
+      <div class="notes-brand-selector" id="notesBrandSelector">
+        <button class="notes-brand-chip active" type="button" data-brand="general">General</button>
+        <button class="notes-brand-chip" type="button" data-brand="cp">CP</button>
+        <button class="notes-brand-chip" type="button" data-brand="tratun">Tratun</button>
+        <button class="notes-brand-chip" type="button" data-brand="studio">Studio</button>
+        <button class="notes-brand-chip" type="button" data-brand="pray">Pray.Scr</button>
+        <button class="notes-brand-chip" type="button" data-brand="meet">Meeting</button>
+        <button class="notes-brand-chip" type="button" data-brand="school">School</button>
+      </div>
+
+      <textarea id="weeklyNotesInput" class="weekly-notes-input" placeholder="Dump everything here - meeting notes, ideas, tasks, reminders, random thoughts. Do not clean it up. Just write."></textarea>
+
+      <div class="notes-capture-actions">
+        <button class="notes-save-btn" id="saveBrainDumpBtn" type="button">Save Note</button>
+        <button class="notes-extract-btn" id="extractTasksBtn" type="button">
+          <span id="extractTasksIcon">+</span>
+          <span id="extractTasksLabel">Extract Tasks</span>
+        </button>
+      </div>
+
+      <div class="notes-suggestions-area" id="notesSuggestionsArea"></div>
+    </div>
+
+    <div class="notes-saved-panel" id="notesSavedPanel">
+      <div class="notes-list" id="brainDumpNotesList"></div>
+    </div>
+
+    <div class="weekly-notes-foot">
+      <span id="weeklyNotesStatus">Saved with this week</span>
+    </div>
+  </aside>
 
   <div class="modal" id="taskModal">
     <div class="modal-content">
