@@ -64,6 +64,12 @@
     return weeks;
   }
   function getYesterdayStr(){const d=new Date();d.setDate(d.getDate()-1);return toDateStr(d);}
+  function scopedStateId(id,weekKey=currentWeekKey){return `${weekKey}__${id}`;}
+  function unscopedStateId(id,weekKey=currentWeekKey){
+    const prefix=`${weekKey}__`;
+    return typeof id==='string'&&id.startsWith(prefix)?id.slice(prefix.length):id;
+  }
+  function isScopedStateId(id,weekKey=currentWeekKey){return typeof id==='string'&&id.startsWith(`${weekKey}__`);}
 
   // ── STATE ──────────────────────────────────────────────
   let state={completions:{},counters:{},skipped:{},deleted:{},order:{}};
@@ -160,8 +166,9 @@
       state={completions:{},counters:{},skipped:{},deleted:{},order:{}};
       customTasks=[];recurringTasks=[];taskNotes={};archivedTasks=[];weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];
       if(Array.isArray(data)){
-        data.forEach(row=>{
-          const id=row.id;
+        data.slice().sort((a,b)=>Number(isScopedStateId(a.id))-Number(isScopedStateId(b.id))).forEach(row=>{
+          const rawId=row.id;
+          const id=unscopedStateId(rawId);
           if(id===`blob_custom_tasks_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))customTasks=p;}catch{}return;}
           if(id==='blob_recurring_tasks'){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))recurringTasks=p;}catch{}return;}
           if(id===`blob_task_notes_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(p&&typeof p==='object'&&!Array.isArray(p))taskNotes=p;}catch{}return;}
@@ -208,17 +215,17 @@
     if(!res.ok)throw new Error('sync failed');
   }
 
-  async function syncCompletion(id,val){await syncRow({id,is_done:Boolean(val),counter_val:null,updated_at:new Date().toISOString()});}
-  async function syncCounter(id,val){await syncRow({id,is_done:false,counter_val:Number(val),updated_at:new Date().toISOString()});}
-  async function syncSkip(dayKey,val){await syncRow({id:`skip_day_${dayKey}`,is_done:Boolean(val),counter_val:null,updated_at:new Date().toISOString()});}
-  async function syncDeleted(id){await syncRow({id:`deleted_${id}`,is_done:true,counter_val:null,updated_at:new Date().toISOString()});}
+  async function syncCompletion(id,val){await syncRow({id:scopedStateId(id),is_done:Boolean(val),counter_val:null,updated_at:new Date().toISOString()});}
+  async function syncCounter(id,val){await syncRow({id:scopedStateId(id),is_done:false,counter_val:Number(val),updated_at:new Date().toISOString()});}
+  async function syncSkip(dayKey,val){await syncRow({id:scopedStateId(`skip_day_${dayKey}`),is_done:Boolean(val),counter_val:null,updated_at:new Date().toISOString()});}
+  async function syncDeleted(id){await syncRow({id:scopedStateId(`deleted_${id}`),is_done:true,counter_val:null,updated_at:new Date().toISOString()});}
   async function syncCustomTasks(){await syncRow({id:`blob_custom_tasks_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(customTasks),updated_at:new Date().toISOString()});}
   async function syncRecurringTasks(){await syncRow({id:'blob_recurring_tasks',week_key:'global',is_done:false,counter_val:null,text_val:JSON.stringify(recurringTasks),updated_at:new Date().toISOString()});}
   async function syncNotes(){await syncRow({id:`blob_task_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(taskNotes),updated_at:new Date().toISOString()});}
   async function syncWeeklyNotes(){await syncRow({id:`blob_weekly_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:weeklyNotes,updated_at:new Date().toISOString()});}
   async function syncBrainDumpNotes(){await syncRow({id:`blob_brain_dump_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(brainDumpNotes),updated_at:new Date().toISOString()});}
   async function syncArchivedTasks(){await syncRow({id:`blob_archived_tasks_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(archivedTasks),updated_at:new Date().toISOString()});}
-  async function syncOrder(dayKey){await syncRow({id:`order_${dayKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(state.order[dayKey]||[]),updated_at:new Date().toISOString()});}
+  async function syncOrder(dayKey){await syncRow({id:scopedStateId(`order_${dayKey}`),is_done:false,counter_val:null,text_val:JSON.stringify(state.order[dayKey]||[]),updated_at:new Date().toISOString()});}
   async function clearCurrentWeekCloud(){setSyncStatus('pending');try{await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${currentWeekKey}`,{method:'DELETE',headers:SB_HEADERS});setSyncStatus('ok');}catch(e){setSyncStatus('fail');}}
 
   function updateWeeklyNotesDrawer(){
@@ -483,7 +490,7 @@
     pushUndo(`Edited "${nextTask.text.substring(0,30)}"`,async()=>{
       customTasks=previousCustom;recurringTasks=previousRecurring;state.deleted=previousDeleted;
       await syncCustomTasks();await syncRecurringTasks();
-      if(found.source==='template')await syncRow({id:`deleted_${originalId}`,is_done:false,counter_val:null,updated_at:new Date().toISOString()});
+      if(found.source==='template')await syncRow({id:scopedStateId(`deleted_${originalId}`),is_done:false,counter_val:null,updated_at:new Date().toISOString()});
     });
     return true;
   }
@@ -511,7 +518,7 @@
       if(found.source==='recurring')recurringTasks.push(taskCopy);
       archivedTasks=archivedTasks.filter(t=>t.id!==task.id);
       await syncCustomTasks();await syncRecurringTasks();await syncArchivedTasks();
-      await syncRow({id:`deleted_${task.id}`,is_done:false,counter_val:null,updated_at:new Date().toISOString()});
+      await syncRow({id:scopedStateId(`deleted_${task.id}`),is_done:false,counter_val:null,updated_at:new Date().toISOString()});
     });
     executeRenderCycles();
   }
@@ -526,7 +533,7 @@
     if(archived.source==='recurring'||restored.recurring)recurringTasks.push(restored);
     else if(archived.source==='custom'||restored.dayKey)customTasks.push(restored);
     await syncArchivedTasks();await syncCustomTasks();await syncRecurringTasks();
-    await syncRow({id:`deleted_${taskId}`,is_done:false,counter_val:null,updated_at:new Date().toISOString()});
+    await syncRow({id:scopedStateId(`deleted_${taskId}`),is_done:false,counter_val:null,updated_at:new Date().toISOString()});
     pushUndo(`Restored "${restored.text.substring(0,30)}"`,async()=>{
       customTasks=customTasks.filter(t=>t.id!==taskId);
       recurringTasks=recurringTasks.filter(t=>t.id!==taskId);
@@ -940,8 +947,8 @@
   function summarizeWeekRows(weekKey,rows){
     const completions={},counters={},skipped={},deleted={};
     let weekCustomTasks=[];
-    rows.forEach(row=>{
-      const id=row.id;
+    rows.slice().sort((a,b)=>Number(isScopedStateId(a.id,weekKey))-Number(isScopedStateId(b.id,weekKey))).forEach(row=>{
+      const id=unscopedStateId(row.id,weekKey);
       if(!id)return;
       if(id===`blob_custom_tasks_${weekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))weekCustomTasks=p;}catch{}return;}
       if(id.startsWith('skip_day_')){skipped[id.replace('skip_day_','')]=Boolean(row.is_done);return;}
