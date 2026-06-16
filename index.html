@@ -36,11 +36,6 @@
           <option value="meet">Meetings</option>
           <option value="school">School</option>
         </select>
-        <select class="select-dropdown" id="meetingOffsetConfig">
-          <option value="20">Meet Alert: 20m</option>
-          <option value="15">Meet Alert: 15m</option>
-          <option value="30">Meet Alert: 30m</option>
-        </select>
         <button class="action-btn" id="summaryViewToggleBtn">Summary</button>
         <button class="action-btn" id="weeklyNotesBtn">Notes</button>
         <button class="action-btn" id="addTaskBtn">+ Task</button>
@@ -204,6 +199,12 @@
       <select id="modType">
         <option value="production">Production Task (Carries Forward)</option>
         <option value="time-anchored">Time-Anchored (Stays Behind)</option>
+      </select>
+      <select id="modAlertPriority">
+        <option value="auto">Alert: Auto</option>
+        <option value="none">Alert: None</option>
+        <option value="low">Alert: Low Priority</option>
+        <option value="high">Alert: High Priority</option>
       </select>
       <input type="text" id="modText" placeholder="Task description">
       <input type="text" id="modTime" placeholder="Time (e.g. 4pm, 11am)">

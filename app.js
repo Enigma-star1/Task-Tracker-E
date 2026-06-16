@@ -79,10 +79,9 @@
   let openDrawerTaskId=null;
   let weeklyNotesSaveTimer=null;
   let editingTaskContext=null;
-  const MEETING_OFFSET_KEY='enigma_meeting_offset_v2', ALERTED_KEY='enigma_alerted_session_v2';
+  const ALERTED_KEY='enigma_alerted_session_v2';
   const MISSED_DISMISSED_KEY='enigma_missed_dismissed';
   const SYNC_QUEUE_KEY='enigma_sync_queue_v3';
-  let currentMeetingOffset=parseInt(localStorage.getItem(MEETING_OFFSET_KEY)||'20',10);
   let alertedTasks=(()=>{try{return JSON.parse(sessionStorage.getItem(ALERTED_KEY))||{};}catch{return{};}})();
   let selectedBrandFilter='all',currentLayoutView='week',activeDayTab='sat';
   let summaryLayoutVisible=false,isReadOnly=false;
@@ -90,7 +89,6 @@
   let missedBannerDismissed=false;
   let historyAnalytics=[];
 
-  document.getElementById('meetingOffsetConfig').value=currentMeetingOffset.toString();
   const todayDayObj=getWeekDays(currentWeekKey).find(d=>d.date===getToday());
   if(todayDayObj) activeDayTab=todayDayObj.key;
 
@@ -440,7 +438,8 @@
       time:document.getElementById('modTime').value.trim()||'Anytime',
       oneTime:false,
       recurring:isRecurring,
-      taskType:document.getElementById('modType').value
+      taskType:document.getElementById('modType').value,
+      alertPriority:document.getElementById('modAlertPriority').value
     };
   }
 
@@ -454,6 +453,7 @@
     document.getElementById('modRecurring').checked=!!task?.recurring;
     document.getElementById('modBrand').value=task?.brand||'cp';
     document.getElementById('modType').value=task?.taskType||'production';
+    document.getElementById('modAlertPriority').value=task?.alertPriority||'auto';
     daySelect.value=task?.dayKey||activeDayTab;
     document.getElementById('taskModal').style.display='flex';
   }
@@ -716,11 +716,44 @@
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
   }
 
-  function getMeetingAlarmTime(baseTime,offsetMin){
+  function getOffsetAlarmTime(baseTime,offsetMin){
     const parsed=parseTimeString(baseTime);if(!parsed)return null;
     let[h,m]=parsed.split(':').map(Number);let total=h*60+m-offsetMin;
     if(total<0)total+=1440;
     return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+  }
+
+  function taskHasMeetingAlert(task){
+    const text=`${task.text||''} ${task.time||''}`.toLowerCase();
+    return /\b(meeting|meet|call|interview|appointment|session|consultation|briefing)\b/.test(text);
+  }
+
+  function getTaskAlertPriority(task){
+    if(taskHasMeetingAlert(task))return'meeting';
+    const priority=task.alertPriority||'auto';
+    if(priority==='none'||priority==='low'||priority==='high')return priority;
+    if(!parseTimeString(task.time))return'none';
+    return task.taskType==='time-anchored'?'low':'none';
+  }
+
+  function getTaskAlertSchedule(task){
+    const priority=getTaskAlertPriority(task);
+    const parsed=parseTimeString(task.time);
+    if(!parsed||priority==='none')return[];
+    if(priority==='meeting')return[30,20,10,0];
+    if(priority==='high')return[90,60,30,0];
+    if(priority==='low')return[0];
+    return[];
+  }
+
+  function formatAlertLead(offset){
+    if(offset===0)return'now';
+    if(offset===10)return'in 10m';
+    if(offset===20)return'in 20m';
+    if(offset===30)return'in 30m';
+    if(offset===60)return'in 1h';
+    if(offset===90)return'in 1h 30m';
+    return`in ${offset}m`;
   }
 
   function getCurrentTimeStr(){const now=new Date();return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;}
@@ -743,14 +776,17 @@
       if(!todayDay||state.skipped[todayDay.key]) return;
       getComputedDayTasks(todayDay,fs).forEach(task=>{
         if(task.isCounter||state.completions[task.id]) return;
-        let target,msg;
-        if(task.brand==='meet'){target=getMeetingAlarmTime(task.time,currentMeetingOffset);msg=`MEETING IN ${currentMeetingOffset}m: ${task.text}`;}
-        else{target=parseTimeString(task.time);msg=`[${task.time}] ${task.text}`;}
-        const alarmKey=`${task.id}_${todayStr}`;
-        if(!target||target!==curTime||alertedTasks[alarmKey]) return;
-        alertedTasks[alarmKey]=true;sessionStorage.setItem(ALERTED_KEY,JSON.stringify(alertedTasks));
-        playAlertChime();
-        if(Notification.permission==='granted') new Notification('ENIGMA — Alert',{body:msg});
+        const priority=getTaskAlertPriority(task);
+        getTaskAlertSchedule(task).forEach(offset=>{
+          const target=getOffsetAlarmTime(task.time,offset);
+          const alarmKey=`${task.id}_${todayStr}_${offset}_${target}`;
+          if(!target||target!==curTime||alertedTasks[alarmKey]) return;
+          alertedTasks[alarmKey]=true;sessionStorage.setItem(ALERTED_KEY,JSON.stringify(alertedTasks));
+          const label=priority==='meeting'?'MEETING ALERT':priority==='high'?'HIGH PRIORITY':'TASK ALERT';
+          const msg=`${label} ${formatAlertLead(offset)}: ${task.text} (${task.time})`;
+          playAlertChime();
+          if(Notification.permission==='granted') new Notification('ENIGMA - Alert',{body:msg});
+        });
       });
     },30000);
   }
@@ -1258,6 +1294,10 @@
               if(task.isCarriedForward){const t=document.createElement('div');t.className='carry-tag';t.textContent='Carry';badges.appendChild(t);}
               if(task.oneTime===true){const t=document.createElement('div');t.className='one-time-tag';t.textContent='One-time';badges.appendChild(t);}
               if(task.recurring===true){const t=document.createElement('div');t.className='recurring-tag';t.textContent='Recurring';badges.appendChild(t);}
+              const alertPriority=getTaskAlertPriority(task);
+              if(alertPriority==='meeting'||alertPriority==='high'||alertPriority==='low'){
+                const t=document.createElement('div');t.className=`alert-tag ${alertPriority}`;t.textContent=alertPriority==='meeting'?'Meeting Alert':(alertPriority==='high'?'High Alert':'Low Alert');badges.appendChild(t);
+              }
               metaRow.appendChild(badges);content.appendChild(text);content.appendChild(metaRow);
               const drawer=document.createElement('div');drawer.className='task-notes-drawer';
               const notesInput=document.createElement('textarea');notesInput.className='task-notes-field';
@@ -1321,7 +1361,6 @@
   // ── EVENTS ─────────────────────────────────────────────
   document.getElementById('viewLayoutSwitch').addEventListener('change',(e)=>{summaryLayoutVisible=false;document.getElementById('summaryViewToggleBtn').classList.remove('active-view-btn');currentLayoutView=e.target.value;executeRenderCycles();});
   document.getElementById('brandFilter').addEventListener('change',(e)=>{selectedBrandFilter=e.target.value;renderGrid();});
-  document.getElementById('meetingOffsetConfig').addEventListener('change',(e)=>{currentMeetingOffset=parseInt(e.target.value,10);localStorage.setItem(MEETING_OFFSET_KEY,currentMeetingOffset.toString());alertedTasks={};sessionStorage.setItem(ALERTED_KEY,JSON.stringify(alertedTasks));});
   document.getElementById('summaryViewToggleBtn').addEventListener('click',(e)=>{summaryLayoutVisible=!summaryLayoutVisible;e.target.classList.toggle('active-view-btn',summaryLayoutVisible);executeRenderCycles();});
   document.getElementById('downloadCsvBtn').addEventListener('click',downloadWeeklyReportCsv);
   document.getElementById('printReportBtn').addEventListener('click',printWeeklyReport);

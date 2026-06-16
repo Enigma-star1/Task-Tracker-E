@@ -269,6 +269,10 @@
     .one-time-tag  { display:inline-block; font-size:8px; letter-spacing:1px; text-transform:uppercase; color:var(--pray);   background:rgba(16,185,129,0.12); padding:2px 5px; border-radius:3px; }
     .carry-tag     { display:inline-block; font-size:8px; letter-spacing:1px; text-transform:uppercase; color:var(--cp);     background:rgba(255,107,53,0.12); padding:2px 5px; border-radius:3px; }
     .recurring-tag { display:inline-block; font-size:8px; letter-spacing:1px; text-transform:uppercase; color:var(--tratun); background:rgba(37,99,235,0.12);  padding:2px 5px; border-radius:3px; }
+    .alert-tag { display:inline-block; font-size:8px; letter-spacing:1px; text-transform:uppercase; padding:2px 5px; border-radius:3px; }
+    .alert-tag.meeting { color:var(--accent-gold); background:rgba(156,104,35,0.16); }
+    .alert-tag.high { color:#FCA5A5; background:rgba(239,68,68,0.14); }
+    .alert-tag.low { color:var(--accent-lavender); background:rgba(188,163,193,0.12); }
 
     .delete-task-btn { color:var(--muted); cursor:pointer; font-size:14px; font-weight:800; line-height:1; padding:0 4px; transition:color 0.15s; flex-shrink:0; }
     .delete-task-btn:hover { color:var(--action-pink); }
