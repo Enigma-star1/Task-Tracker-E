@@ -235,6 +235,18 @@
         <button class="action-btn danger" id="clearQueueBtn">Clear Offline Queue</button>
       </div>
       <div class="settings-section">
+        <div class="settings-label">ntfy Alerts</div>
+        <div class="settings-copy">Enter your ntfy topic name to send the same task alarms to your phone and PC.</div>
+        <input type="text" id="ntfyTopicInput" placeholder="ntfy topic name">
+        <label class="modal-checkbox-row">
+          <input type="checkbox" id="ntfyEnabledInput"> Send alerts to ntfy
+        </label>
+        <div class="settings-button-row">
+          <button class="action-btn" id="saveNtfySettingsBtn">Save ntfy Settings</button>
+          <button class="action-btn" id="testNtfyBtn">Test ntfy</button>
+        </div>
+      </div>
+      <div class="settings-section">
         <div class="settings-label">Archive Bin</div>
         <div class="settings-copy">Archived tasks are hidden from the tracker but can be restored here.</div>
         <div class="archive-list" id="archiveList"></div>

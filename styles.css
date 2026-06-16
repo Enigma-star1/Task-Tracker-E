@@ -619,6 +619,8 @@
     .settings-label { color:var(--accent-lavender); font-size:9px; letter-spacing:1.4px; text-transform:uppercase; }
     .settings-value { color:#fff; font-size:12px; line-height:1.45; }
     .settings-copy { color:var(--muted); font-size:11px; line-height:1.55; }
+    .settings-button-row { display:flex; gap:8px; flex-wrap:wrap; }
+    .settings-button-row .action-btn { flex:1; min-width:140px; }
     .archive-list { display:flex; flex-direction:column; gap:9px; max-height:220px; overflow-y:auto; }
     .archive-empty { color:var(--muted); font-size:11px; font-style:italic; }
     .archive-row {

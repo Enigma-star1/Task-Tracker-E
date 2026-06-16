@@ -82,7 +82,10 @@
   const ALERTED_KEY='enigma_alerted_session_v2';
   const MISSED_DISMISSED_KEY='enigma_missed_dismissed';
   const SYNC_QUEUE_KEY='enigma_sync_queue_v3';
+  const NTFY_TOPIC_KEY='enigma_ntfy_topic_v1', NTFY_ENABLED_KEY='enigma_ntfy_enabled_v1';
   let alertedTasks=(()=>{try{return JSON.parse(sessionStorage.getItem(ALERTED_KEY))||{};}catch{return{};}})();
+  let ntfyTopic=localStorage.getItem(NTFY_TOPIC_KEY)||'';
+  let ntfyEnabled=localStorage.getItem(NTFY_ENABLED_KEY)==='true';
   let selectedBrandFilter='all',currentLayoutView='week',activeDayTab='sat';
   let summaryLayoutVisible=false,isReadOnly=false;
   let currentWeekKey=getSaturdayAnchor(getToday()),isOnline=navigator.onLine,realtimeConnected=false;
@@ -756,6 +759,23 @@
     return`in ${offset}m`;
   }
 
+  async function sendNtfyAlert(title,message,priority){
+    if(!ntfyEnabled||!ntfyTopic.trim()||!navigator.onLine)return;
+    const cleanTopic=ntfyTopic.trim().replace(/^https?:\/\/ntfy\.sh\//i,'').replace(/[^a-zA-Z0-9_-]/g,'');
+    if(!cleanTopic)return;
+    try{
+      await fetch(`https://ntfy.sh/${encodeURIComponent(cleanTopic)}`,{
+        method:'POST',
+        headers:{
+          'Title':title,
+          'Priority':priority==='high'||priority==='meeting'?'high':'default',
+          'Tags':priority==='meeting'?'calendar_clock':(priority==='high'?'warning':'bell')
+        },
+        body:message
+      });
+    }catch(e){console.warn('ntfy alert failed:',e);}
+  }
+
   function getCurrentTimeStr(){const now=new Date();return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;}
 
   // ── CLOCK & ALARM ──────────────────────────────────────
@@ -786,6 +806,7 @@
           const msg=`${label} ${formatAlertLead(offset)}: ${task.text} (${task.time})`;
           playAlertChime();
           if(Notification.permission==='granted') new Notification('ENIGMA - Alert',{body:msg});
+          sendNtfyAlert(label,msg,priority);
         });
       });
     },30000);
@@ -1355,6 +1376,10 @@
     if(!el)return;
     const queueText=syncQueue.length===0?'No saved offline changes.':`${syncQueue.length} saved change${syncQueue.length===1?'':'s'} waiting to sync.`;
     el.textContent=`${navigator.onLine?'Online':'Offline'} · ${queueText}`;
+    const ntfyTopicInput=document.getElementById('ntfyTopicInput');
+    const ntfyEnabledInput=document.getElementById('ntfyEnabledInput');
+    if(ntfyTopicInput)ntfyTopicInput.value=ntfyTopic;
+    if(ntfyEnabledInput)ntfyEnabledInput.checked=ntfyEnabled;
     renderArchiveBin();
   }
 
@@ -1390,6 +1415,23 @@
     const confirmed=await showConfirm('CLEAR OFFLINE QUEUE','This removes saved unsynced changes only. Your visible tracker entries stay as they are.');
     if(!confirmed)return;
     syncQueue=[];persistSyncQueue();setSyncStatus('ok');updateOnlineStatus();updateSettingsPanel();
+  });
+  document.getElementById('saveNtfySettingsBtn').addEventListener('click',async()=>{
+    ntfyTopic=document.getElementById('ntfyTopicInput').value.trim();
+    ntfyEnabled=document.getElementById('ntfyEnabledInput').checked;
+    localStorage.setItem(NTFY_TOPIC_KEY,ntfyTopic);
+    localStorage.setItem(NTFY_ENABLED_KEY,ntfyEnabled?'true':'false');
+    await showConfirm('NTFY SAVED',ntfyEnabled&&ntfyTopic?'ntfy alerts are enabled for this device.':'ntfy alerts are saved but currently off or missing a topic.');
+    updateSettingsPanel();
+  });
+  document.getElementById('testNtfyBtn').addEventListener('click',async()=>{
+    ntfyTopic=document.getElementById('ntfyTopicInput').value.trim();
+    ntfyEnabled=document.getElementById('ntfyEnabledInput').checked;
+    localStorage.setItem(NTFY_TOPIC_KEY,ntfyTopic);
+    localStorage.setItem(NTFY_ENABLED_KEY,ntfyEnabled?'true':'false');
+    if(!ntfyEnabled||!ntfyTopic){await showConfirm('NTFY NOT READY','Turn ntfy on and enter your topic first.');return;}
+    await sendNtfyAlert('ENIGMA TEST','ntfy is connected to your Task Tracker alarms.','low');
+    await showConfirm('TEST SENT','Check your ntfy app for the test alert.');
   });
   document.getElementById('resetBtn').addEventListener('click',async()=>{if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be reset.');return;}const confirmed=await showConfirm('RESET WEEK','This will wipe all completions, custom tasks, notes, archived tasks, and cloud data for this week. Cannot be undone.');if(!confirmed)return;state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];archivedTasks=[];alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));closeWeeklyNotesDrawer();updateWeeklyNotesDrawer();await clearCurrentWeekCloud();executeRenderCycles();});
 
