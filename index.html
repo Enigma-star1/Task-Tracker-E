@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ENIGMA - Output Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="offline-banner" id="offlineBanner">You are offline - changes are queued and will sync when connection returns</div>
+  <div class="missed-banner" id="missedBanner">
+    <span id="missedBannerText"></span>
+    <span class="missed-banner-dismiss" id="missedBannerDismiss">x</span>
+  </div>
+
+  <div class="header">
+    <div>
+      <div class="brand-title">OUTPUT TRACKER</div>
+      <div class="brand-sub" id="weekRangeDisplay">ENIGMA</div>
+    </div>
+    <div class="header-right">
+      <div class="controls-wrapper">
+        <select class="select-dropdown" id="weekPicker" title="Select week"></select>
+        <select class="select-dropdown" id="viewLayoutSwitch">
+          <option value="week">Full Week</option>
+          <option value="day">Single Day</option>
+        </select>
+        <select class="select-dropdown" id="brandFilter">
+          <option value="all">All Brands</option>
+          <option value="cp">CareerPaddy</option>
+          <option value="tratun">Tratun</option>
+          <option value="studio">Enigma Studio</option>
+          <option value="pray">Praying Scripture</option>
+          <option value="meet">Meetings</option>
+          <option value="school">School</option>
+        </select>
+        <button class="action-btn" id="summaryViewToggleBtn">Summary</button>
+        <button class="action-btn" id="weeklyNotesBtn">Notes</button>
+        <button class="action-btn" id="addTaskBtn">+ Task</button>
+        <button class="action-btn" id="settingsBtn">Settings</button>
+        <button class="action-btn danger" id="resetBtn">Reset</button>
+      </div>
+      <div class="sync-indicator">
+        <div class="sync-dot" id="syncDot"></div>
+        <span id="syncLabel">Synced</span>
+      </div>
+      <div class="meta-time-block">
+        <div class="clock-display">
+          <div class="clock-time" id="liveClockDisplay">00:00:00</div>
+          <div class="clock-label">Local Time</div>
+        </div>
+        <div class="today-block">
+          <div class="today-count" id="todayCount">-</div>
+          <div class="today-count-label">Today Done</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="metrics-bar">
+    <div class="streak-block">
+      <div class="streak-label">Streak</div>
+      <div class="streak-count" id="streakCount">0</div>
+      <div class="streak-dots" id="streakDots"></div>
+    </div>
+    <div class="velocity-block">
+      <div class="streak-label">Velocity</div>
+      <div class="progress-bg"><div class="progress-fill" id="velocityFill"></div></div>
+    </div>
+    <div id="nextUpSlot"></div>
+    <div id="missedChipSlot"></div>
+    <div id="realtimeBadgeSlot"></div>
+  </div>
+
+  <div class="day-tabs-row" id="dayTabsRow"></div>
+
+  <div class="grid-wrapper" id="gridWrapper">
+    <div class="week-grid" id="weekGrid">
+      <div class="grid-loading">
+        <div class="grid-loading-bar"><div class="grid-loading-fill"></div></div>
+        <div class="grid-loading-text">Loading from cloud...</div>
+      </div>
+    </div>
+    <div class="summary-view-pane" id="summaryViewPane">
+      <div class="command-brief-card">
+        <div>
+          <div class="macro-title">Command Brief</div>
+          <div class="brief-subtitle" id="briefSubtitle">Current week operating signal</div>
+        </div>
+        <div class="brief-grid" id="briefGrid"></div>
+        <div class="report-actions">
+          <button class="action-btn" id="downloadCsvBtn">Download CSV</button>
+          <button class="action-btn" id="printReportBtn">Print Report</button>
+        </div>
+      </div>
+      <div class="macro-card">
+        <div class="macro-title">Brand Track Diagnostics</div>
+        <div id="brandMetricsAnchor"></div>
+      </div>
+      <div class="analytics-card">
+        <div class="macro-title">Analytics</div>
+        <div class="analytics-grid" id="analyticsGrid"></div>
+        <div class="analytics-subtitle">Daily Flow</div>
+        <div class="day-analytics-list" id="dayAnalyticsAnchor"></div>
+      </div>
+      <div class="reupload-running-block">
+        <div class="reupload-running-title">Weekly Cumulative Reuploads</div>
+        <div class="reupload-running-count" id="reuploadRunningCount">0</div>
+      </div>
+      <div class="history-card">
+        <div class="macro-title">Week History</div>
+        <div id="weekHistoryAnchor"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-legend">
+    <div class="footer-left">
+      <div class="legend-item"><div class="l-dot" style="background:var(--cp)"></div>CareerPaddy</div>
+      <div class="legend-item"><div class="l-dot" style="background:var(--tratun)"></div>Tratun</div>
+      <div class="legend-item"><div class="l-dot" style="background:var(--studio)"></div>Enigma Studio</div>
+      <div class="legend-item"><div class="l-dot" style="background:var(--pray)"></div>Praying Scripture</div>
+      <div class="legend-item"><div class="l-dot" style="background:var(--meet)"></div>Meeting</div>
+      <div class="legend-item"><div class="l-dot" style="background:var(--school)"></div>School</div>
+    </div>
+    <div class="footer-hint">Cmd+Z / Ctrl+Z - undo</div>
+  </div>
+
+  <div class="undo-toast" id="undoToast">
+    <span id="undoToastMsg">Action undone</span>
+    <span class="undo-btn" id="undoBtnEl">UNDO</span>
+  </div>
+
+  <button class="notes-drawer-handle" id="weeklyNotesHandle" type="button" title="Open Brain Dump" aria-label="Open Brain Dump">
+    <span></span>
+  </button>
+  <div class="notes-overlay" id="weeklyNotesOverlay"></div>
+  <aside class="weekly-notes-drawer" id="weeklyNotesDrawer" aria-hidden="true">
+    <div class="weekly-notes-head">
+      <div>
+        <div class="weekly-notes-kicker">Capture - Extract - Push</div>
+        <div class="weekly-notes-title" id="weeklyNotesTitle">Brain Dump</div>
+      </div>
+      <button class="notes-close-btn" id="weeklyNotesCloseBtn" type="button">Close</button>
+    </div>
+
+    <div class="notes-drawer-tabs">
+      <button class="notes-drawer-tab active" type="button" data-notes-tab="capture">Capture</button>
+      <button class="notes-drawer-tab" type="button" data-notes-tab="saved">Saved Notes</button>
+    </div>
+
+    <div class="notes-capture-panel" id="notesCapturePanel">
+      <div class="notes-brand-selector" id="notesBrandSelector">
+        <button class="notes-brand-chip active" type="button" data-brand="general">General</button>
+        <button class="notes-brand-chip" type="button" data-brand="cp">CP</button>
+        <button class="notes-brand-chip" type="button" data-brand="tratun">Tratun</button>
+        <button class="notes-brand-chip" type="button" data-brand="studio">Studio</button>
+        <button class="notes-brand-chip" type="button" data-brand="pray">Pray.Scr</button>
+        <button class="notes-brand-chip" type="button" data-brand="meet">Meeting</button>
+        <button class="notes-brand-chip" type="button" data-brand="school">School</button>
+      </div>
+
+      <textarea id="weeklyNotesInput" class="weekly-notes-input" placeholder="Dump everything here - meeting notes, ideas, tasks, reminders, random thoughts. Do not clean it up. Just write."></textarea>
+
+      <div class="notes-capture-actions">
+        <button class="notes-save-btn" id="saveBrainDumpBtn" type="button">Save Note</button>
+        <button class="notes-extract-btn" id="extractTasksBtn" type="button">
+          <span id="extractTasksIcon">+</span>
+          <span id="extractTasksLabel">Extract Tasks</span>
+        </button>
+      </div>
+
+      <div class="notes-suggestions-area" id="notesSuggestionsArea"></div>
+    </div>
+
+    <div class="notes-saved-panel" id="notesSavedPanel">
+      <div class="notes-list" id="brainDumpNotesList"></div>
+    </div>
+
+    <div class="weekly-notes-foot">
+      <span id="weeklyNotesStatus">Saved with this week</span>
+    </div>
+  </aside>
+
+  <div class="modal" id="taskModal">
+    <div class="modal-content">
+      <h3 id="taskModalTitle">INJECT CUSTOM TASK</h3>
+      <select id="modDay"></select>
+      <select id="modBrand">
+        <option value="cp">CareerPaddy</option>
+        <option value="tratun">Tratun</option>
+        <option value="studio">Enigma Studio</option>
+        <option value="pray">Praying Scripture</option>
+        <option value="meet">Meeting</option>
+        <option value="school">School</option>
+      </select>
+      <select id="modType">
+        <option value="production">Production Task (Carries Forward)</option>
+        <option value="time-anchored">Time-Anchored (Stays Behind)</option>
+      </select>
+      <select id="modAlertPriority">
+        <option value="auto">Alert: Auto</option>
+        <option value="none">Alert: None</option>
+        <option value="low">Alert: Low Priority</option>
+        <option value="high">Alert: High Priority</option>
+      </select>
+      <input type="text" id="modText" placeholder="Task description">
+      <input type="text" id="modTime" placeholder="Time (e.g. 4pm, 11am)">
+      <label class="modal-checkbox-row">
+        <input type="checkbox" id="modRecurring"> Repeat every week (recurring)
+      </label>
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <button class="action-btn" id="modCancel" style="flex:1;">Cancel</button>
+        <button class="action-btn" id="modSave" style="flex:1;background:var(--accent-purple)">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="settingsModal">
+    <div class="modal-content settings-modal-content">
+      <h3>TRACKER SETTINGS</h3>
+      <div class="settings-section">
+        <div class="settings-label">Sync Health</div>
+        <div class="settings-value" id="settingsSyncStatus">Checking...</div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label">Database Safety</div>
+        <div class="settings-copy">Keep Supabase Row Level Security enabled. The browser key is public, so the database rules are what protect your tracker.</div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label">Local Recovery</div>
+        <div class="settings-copy">If a change gets stuck after reconnecting, clear only the saved offline queue. Your visible tracker data stays untouched.</div>
+        <button class="action-btn danger" id="clearQueueBtn">Clear Offline Queue</button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label">Archive Bin</div>
+        <div class="settings-copy">Archived tasks are hidden from the tracker but can be restored here.</div>
+        <div class="archive-list" id="archiveList"></div>
+      </div>
+      <button class="action-btn" id="settingsCloseBtn">Close</button>
+    </div>
+  </div>
+
+  <div class="modal" id="confirmModal">
+    <div class="modal-content">
+      <h3 id="confirmModalTitle">CONFIRM</h3>
+      <div class="confirm-modal-text" id="confirmModalText"></div>
+      <div class="confirm-modal-actions">
+        <button class="action-btn" id="confirmModalCancel" style="flex:1;">Cancel</button>
+        <button class="action-btn" id="confirmModalOk" style="flex:1;background:var(--action-pink);border-color:var(--action-pink);">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
