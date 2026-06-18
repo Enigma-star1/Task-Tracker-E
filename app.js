@@ -694,7 +694,9 @@
         if(t.oneTime===true)return;
         if(t.isCounter)return;
         if(t.taskType!=='production')return;
-        if(!state.completions[t.id]){if(!combined.some(ex=>ex.id===t.id))combined.push({...t,isCarriedForward:true});}
+        if(!state.completions[t.id]){
+          if(!combined.some(ex=>ex.id===t.id))combined.push({...t,isCarriedForward:true,time:''});
+        }
       });
     }
     return combined;
@@ -705,12 +707,17 @@
     if(!t) return null;
     let s=t.toLowerCase().replace(/\s+/g,'');
     const pm=s.includes('pm'),am=s.includes('am');
-    if(!pm&&!am) return null;
+    const hasMeridiem=pm||am;
     s=s.replace('pm','').replace('am','').replace(/[^0-9:]/g,'');
     if(!s) return null;
     let h=0,m=0;
     if(s.includes(':')){ [h,m]=s.split(':').map(Number);}else{h=parseInt(s,10);}
     if(isNaN(h)||isNaN(m)) return null;
+    if(!hasMeridiem){
+      if(h>=1&&h<=7)h+=12;
+      if(h<0||h>23||m<0||m>59)return null;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    }
     if(pm&&h<12) h+=12;
     if(am&&h===12) h=0;
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
@@ -733,7 +740,7 @@
     const priority=task.alertPriority||'auto';
     if(priority==='none'||priority==='low'||priority==='high')return priority;
     if(!parseTimeString(task.time))return'none';
-    return task.taskType==='time-anchored'?'low':'none';
+    return'low';
   }
 
   function getTaskAlertSchedule(task){
@@ -1288,7 +1295,7 @@
               const content=document.createElement('div');content.className='task-content';
               const text=document.createElement('div');text.className='task-text';text.textContent=task.text;
               const metaRow=document.createElement('div');metaRow.className='task-meta-row';
-              const time=document.createElement('div');time.className='task-time';time.textContent=task.time;
+              const time=document.createElement('div');time.className='task-time';time.textContent=task.time||'Anytime';
               metaRow.appendChild(time);
               const badges=document.createElement('div');badges.className='task-badges';
               if(task.isCarriedForward){const t=document.createElement('div');t.className='carry-tag';t.textContent='Carry';badges.appendChild(t);}
