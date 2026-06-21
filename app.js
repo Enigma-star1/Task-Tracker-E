@@ -250,7 +250,8 @@
     const drawer=document.getElementById('weeklyNotesDrawer');
     drawer.classList.add('open');
     drawer.setAttribute('aria-hidden','false');
-    if(!isReadOnly)setTimeout(()=>document.getElementById('weeklyNotesInput').focus(),80);
+    document.body.style.overflow='hidden';
+    if(!isReadOnly && window.innerWidth>768)setTimeout(()=>document.getElementById('weeklyNotesInput').focus(),80);
   }
 
   function closeWeeklyNotesDrawer(){
@@ -260,6 +261,7 @@
     const handle=document.getElementById('weeklyNotesHandle');
     if(handle)handle.classList.remove('hidden');
     if(drawer){drawer.classList.remove('open');drawer.setAttribute('aria-hidden','true');}
+    document.body.style.overflow='';
   }
 
   function queueWeeklyNotesSave(){
