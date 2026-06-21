@@ -234,6 +234,9 @@
     }
     .task-item:hover { border-color:var(--border-light); background:rgba(255,255,255,0.04); }
     .task-item.done { opacity:0.22; }
+    .task-item.needs-revision { opacity:1; }
+    .task-item.needs-revision .task-text { text-decoration:none; color:var(--text); }
+    .task-item.done.needs-revision { border-left:2px solid var(--sync-pending); padding-left:8px; }
     .task-item.carry-forward-derived { border-style:dashed; border-color:rgba(255,107,53,0.4); background:rgba(255,107,53,0.02); }
     .task-item[draggable="true"] { cursor:grab; }
     .task-item.drag-over { border-color:var(--accent-lavender); background:rgba(109,53,118,0.15); }
@@ -268,6 +271,7 @@
     .task-badges { display:flex; gap:5px; align-items:center; }
     .one-time-tag  { display:inline-block; font-size:8px; letter-spacing:1px; text-transform:uppercase; color:var(--pray);   background:rgba(16,185,129,0.12); padding:2px 5px; border-radius:3px; }
     .carry-tag     { display:inline-block; font-size:8px; letter-spacing:1px; text-transform:uppercase; color:var(--cp);     background:rgba(255,107,53,0.12); padding:2px 5px; border-radius:3px; }
+    .revision-tag  { display:inline-block; font-size:8px; letter-spacing:1px; text-transform:uppercase; color:var(--sync-pending); background:rgba(245,158,11,0.14); padding:2px 5px; border-radius:3px; }
     .recurring-tag { display:inline-block; font-size:8px; letter-spacing:1px; text-transform:uppercase; color:var(--tratun); background:rgba(37,99,235,0.12);  padding:2px 5px; border-radius:3px; }
     .alert-tag { display:inline-block; font-size:8px; letter-spacing:1px; text-transform:uppercase; padding:2px 5px; border-radius:3px; }
     .alert-tag.meeting { color:var(--accent-gold); background:rgba(156,104,35,0.16); }
@@ -291,9 +295,16 @@
     }
     .task-action-btn:hover { color:#fff; border-color:var(--border-light); background:rgba(255,255,255,0.05); }
     .task-action-btn.danger:hover { color:var(--action-pink); border-color:rgba(244,114,182,0.45); }
+    .task-action-btn.revision-flag { color:var(--sync-pending); border-color:rgba(245,158,11,0.3); }
+    .task-action-btn.revision-flag:hover { color:var(--sync-pending); border-color:rgba(245,158,11,0.6); }
+    .task-action-btn.revision-flag.active { background:rgba(245,158,11,0.14); }
 
     .task-notes-drawer { max-height:0; overflow:hidden; transition:max-height 0.22s cubic-bezier(0.4,0,0.2,1); }
     .task-notes-drawer.open { max-height:100px; }
+    .task-notes-drawer.open.has-revision-time { max-height:148px; }
+    .revision-time-field { width:100%; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); border-radius:4px; color:var(--sync-pending); font-family:inherit; font-size:11px; padding:6px 8px; margin-top:8px; outline:none; }
+    .revision-time-field:focus { border-color:var(--sync-pending); }
+    .revision-time-field::placeholder { color:rgba(245,158,11,0.5); }
     .task-notes-field { width:100%; background:rgba(0,0,0,0.4); border:1px solid var(--border); border-radius:4px; color:var(--accent-lavender); font-family:inherit; font-size:11px; padding:6px 8px; margin-top:8px; outline:none; resize:none; }
     .task-notes-field:focus { border-color:var(--accent-purple); }
 

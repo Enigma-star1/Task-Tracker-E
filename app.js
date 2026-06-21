@@ -72,8 +72,9 @@
   function isScopedStateId(id,weekKey=currentWeekKey){return typeof id==='string'&&id.startsWith(`${weekKey}__`);}
 
   // ── STATE ──────────────────────────────────────────────
-  let state={completions:{},counters:{},skipped:{},deleted:{},order:{}};
+  let state={completions:{},counters:{},skipped:{},deleted:{},order:{},revision:{}};
   let customTasks=[],recurringTasks=[],taskNotes={},archivedTasks=[];
+  let revisionTimes={};
   let weeklyNotes='';
   let brainDumpNotes=[],brainDumpSuggestions=[],selectedBrainDumpBrand='general',activeBrainDumpTab='capture';
   let openDrawerTaskId=null;
@@ -109,7 +110,7 @@
 
   document.getElementById('weekPicker').addEventListener('change',async(e)=>{
     currentWeekKey=e.target.value;isReadOnly=currentWeekKey!==getSaturdayAnchor(getToday());
-    state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];openDrawerTaskId=null;
+    state={completions:{},counters:{},skipped:{},deleted:{},order:{},revision:{}};customTasks=[];taskNotes={};revisionTimes={};weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];openDrawerTaskId=null;
     missedBannerDismissed=false;
     closeWeeklyNotesDrawer();updateWeeklyNotesDrawer();
     showLoadingGrid();await fetchCloudState();fetchHistoryAnalytics();
@@ -161,8 +162,8 @@
     try{
       const res=await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${currentWeekKey}&select=*`,{headers:SB_HEADERS});
       const data=await res.json();
-      state={completions:{},counters:{},skipped:{},deleted:{},order:{}};
-      customTasks=[];recurringTasks=[];taskNotes={};archivedTasks=[];weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];
+      state={completions:{},counters:{},skipped:{},deleted:{},order:{},revision:{}};
+      customTasks=[];recurringTasks=[];taskNotes={};revisionTimes={};archivedTasks=[];weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];
       if(Array.isArray(data)){
         data.slice().sort((a,b)=>Number(isScopedStateId(a.id))-Number(isScopedStateId(b.id))).forEach(row=>{
           const rawId=row.id;
@@ -170,11 +171,13 @@
           if(id===`blob_custom_tasks_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))customTasks=p;}catch{}return;}
           if(id==='blob_recurring_tasks'){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))recurringTasks=p;}catch{}return;}
           if(id===`blob_task_notes_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(p&&typeof p==='object'&&!Array.isArray(p))taskNotes=p;}catch{}return;}
+          if(id===`blob_revision_times_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(p&&typeof p==='object'&&!Array.isArray(p))revisionTimes=p;}catch{}return;}
           if(id===`blob_weekly_notes_${currentWeekKey}`){weeklyNotes=row.text_val||'';return;}
           if(id===`blob_brain_dump_notes_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))brainDumpNotes=p;}catch{}return;}
           if(id===`blob_archived_tasks_${currentWeekKey}`){try{const p=JSON.parse(row.text_val);if(Array.isArray(p))archivedTasks=p;}catch{}return;}
           if(id.startsWith('skip_day_')){state.skipped[id.replace('skip_day_','')]=Boolean(row.is_done);return;}
           if(id.startsWith('deleted_')){state.deleted[id.replace('deleted_','')]=Boolean(row.is_done);return;}
+          if(id.startsWith('revision_')){state.revision[id.replace('revision_','')]=Boolean(row.is_done);return;}
           if(id.startsWith('order_')){try{state.order[id.replace('order_','')]=JSON.parse(row.text_val);}catch{}return;}
           if(row.counter_val!==null&&row.counter_val!==undefined){state.counters[id]=Number(row.counter_val);}
           else{state.completions[id]=Boolean(row.is_done);}
@@ -217,9 +220,11 @@
   async function syncCounter(id,val){await syncRow({id:scopedStateId(id),is_done:false,counter_val:Number(val),updated_at:new Date().toISOString()});}
   async function syncSkip(dayKey,val){await syncRow({id:scopedStateId(`skip_day_${dayKey}`),is_done:Boolean(val),counter_val:null,updated_at:new Date().toISOString()});}
   async function syncDeleted(id){await syncRow({id:scopedStateId(`deleted_${id}`),is_done:true,counter_val:null,updated_at:new Date().toISOString()});}
+  async function syncRevision(id,val){await syncRow({id:scopedStateId(`revision_${id}`),is_done:Boolean(val),counter_val:null,updated_at:new Date().toISOString()});}
   async function syncCustomTasks(){await syncRow({id:`blob_custom_tasks_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(customTasks),updated_at:new Date().toISOString()});}
   async function syncRecurringTasks(){await syncRow({id:'blob_recurring_tasks',week_key:'global',is_done:false,counter_val:null,text_val:JSON.stringify(recurringTasks),updated_at:new Date().toISOString()});}
   async function syncNotes(){await syncRow({id:`blob_task_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(taskNotes),updated_at:new Date().toISOString()});}
+  async function syncRevisionTimes(){await syncRow({id:`blob_revision_times_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(revisionTimes),updated_at:new Date().toISOString()});}
   async function syncWeeklyNotes(){await syncRow({id:`blob_weekly_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:weeklyNotes,updated_at:new Date().toISOString()});}
   async function syncBrainDumpNotes(){await syncRow({id:`blob_brain_dump_notes_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(brainDumpNotes),updated_at:new Date().toISOString()});}
   async function syncArchivedTasks(){await syncRow({id:`blob_archived_tasks_${currentWeekKey}`,is_done:false,counter_val:null,text_val:JSON.stringify(archivedTasks),updated_at:new Date().toISOString()});}
@@ -1102,8 +1107,8 @@
         if(!task.isCounter&&diag[task.brand]){diag[task.brand].total++;if(done)diag[task.brand].done++;}
         rows.push({
           day:day.label,date:day.date,brand:BRAND_LABELS[task.brand]||task.brand||'Task',
-          text:task.text,time:task.time||'Anytime',status:done?'Done':'Open',
-          type:task.taskType||'task',tags:[task.recurring?'Recurring':'',task.oneTime?'One-time':'',task.isCarriedForward?'Carry':''].filter(Boolean).join(' ')
+          text:task.text,time:task.time||'Anytime',status:state.revision[task.id]?'Revision':(done?'Done':'Open'),
+          type:task.taskType||'task',tags:[task.recurring?'Recurring':'',task.oneTime?'One-time':'',task.isCarriedForward?'Carry':'',state.revision[task.id]&&revisionTimes[task.id]?`Due ${revisionTimes[task.id]}`:''].filter(Boolean).join(' ')
         });
       });
     });
@@ -1281,7 +1286,7 @@
               widget.appendChild(cHead);widget.appendChild(cTime);widget.appendChild(stepper);tasksEl.appendChild(widget);
             }else{
               const item=document.createElement('div');
-              item.className=`task-item brand-${task.brand}${state.completions[task.id]?' done':''}${task.isCarriedForward?' carry-forward-derived':''}`;
+              item.className=`task-item brand-${task.brand}${state.completions[task.id]?' done':''}${task.isCarriedForward?' carry-forward-derived':''}${state.revision[task.id]?' needs-revision':''}`;
 
               // Overdue glow — today only, uncompleted, specific time already passed
               if(isToday&&!state.completions[task.id]){
@@ -1301,6 +1306,7 @@
               metaRow.appendChild(time);
               const badges=document.createElement('div');badges.className='task-badges';
               if(task.isCarriedForward){const t=document.createElement('div');t.className='carry-tag';t.textContent='Carry';badges.appendChild(t);}
+              if(state.revision[task.id]){const t=document.createElement('div');t.className='revision-tag';t.textContent=revisionTimes[task.id]?`Revision · ${revisionTimes[task.id]}`:'Revision';badges.appendChild(t);}
               if(task.oneTime===true){const t=document.createElement('div');t.className='one-time-tag';t.textContent='One-time';badges.appendChild(t);}
               if(task.recurring===true){const t=document.createElement('div');t.className='recurring-tag';t.textContent='Recurring';badges.appendChild(t);}
               const alertPriority=getTaskAlertPriority(task);
@@ -1309,6 +1315,15 @@
               }
               metaRow.appendChild(badges);content.appendChild(text);content.appendChild(metaRow);
               const drawer=document.createElement('div');drawer.className='task-notes-drawer';
+              if(state.revision[task.id]){
+                drawer.classList.add('has-revision-time');
+                const revTimeInput=document.createElement('input');revTimeInput.type='text';revTimeInput.className='revision-time-field';
+                revTimeInput.placeholder='Revision due (e.g. 4pm) — separate from task time';revTimeInput.value=revisionTimes[task.id]||'';revTimeInput.disabled=isReadOnly;
+                revTimeInput.addEventListener('click',e=>e.stopPropagation());
+                revTimeInput.addEventListener('input',async(e)=>{if(isReadOnly)return;revisionTimes[task.id]=e.target.value;await syncRevisionTimes();});
+                revTimeInput.addEventListener('blur',()=>executeRenderCycles());
+                drawer.appendChild(revTimeInput);
+              }
               const notesInput=document.createElement('textarea');notesInput.className='task-notes-field';
               notesInput.placeholder='Add contextual logging notes…';notesInput.value=taskNotes[task.id]||'';notesInput.disabled=isReadOnly;
               if(openDrawerTaskId===task.id) drawer.classList.add('open');
@@ -1325,7 +1340,21 @@
                 copyBtn.addEventListener('click',async(e)=>{e.stopPropagation();await duplicateTask(task,day.key);});
                 const archiveBtn=document.createElement('button');archiveBtn.type='button';archiveBtn.className='task-action-btn danger';archiveBtn.textContent='Archive';archiveBtn.title='Archive task';
                 archiveBtn.addEventListener('click',async(e)=>{e.stopPropagation();await archiveTask(task);});
-                actions.appendChild(editBtn);actions.appendChild(copyBtn);actions.appendChild(archiveBtn);
+                actions.appendChild(editBtn);actions.appendChild(copyBtn);
+                if(state.revision[task.id]){
+                  const clearRevBtn=document.createElement('button');clearRevBtn.type='button';clearRevBtn.className='task-action-btn revision-flag active';clearRevBtn.textContent='Clear Revision';clearRevBtn.title='Mark correction resolved';
+                  clearRevBtn.addEventListener('click',async(e)=>{e.stopPropagation();state.revision[task.id]=false;delete revisionTimes[task.id];await syncRevision(task.id,false);await syncRevisionTimes();executeRenderCycles();});
+                  actions.appendChild(clearRevBtn);
+                }else if(state.completions[task.id]){
+                  const flagRevBtn=document.createElement('button');flagRevBtn.type='button';flagRevBtn.className='task-action-btn revision-flag';flagRevBtn.textContent='Flag Revision';flagRevBtn.title='Correction requested on a completed task';
+                  flagRevBtn.addEventListener('click',async(e)=>{
+                    e.stopPropagation();state.revision[task.id]=true;await syncRevision(task.id,true);
+                    openDrawerTaskId=task.id;document.querySelectorAll('.task-notes-drawer.open').forEach(d=>d.classList.remove('open'));
+                    executeRenderCycles();
+                  });
+                  actions.appendChild(flagRevBtn);
+                }
+                actions.appendChild(archiveBtn);
                 row.appendChild(actions);
               }
               item.appendChild(row);makeDraggable(item,task.id,day.key);
@@ -1336,7 +1365,7 @@
                   const isCheckClick=e.target.closest('.task-check')||e.target.closest('.brand-pip')||e.target.closest('.task-text');
                   if(isCheckClick||state.completions[task.id]){
                     const prev=!!state.completions[task.id];state.completions[task.id]=!prev;
-                    item.className=`task-item brand-${task.brand}${state.completions[task.id]?' done':''}${task.isCarriedForward?' carry-forward-derived':''}`;
+                    item.className=`task-item brand-${task.brand}${state.completions[task.id]?' done':''}${task.isCarriedForward?' carry-forward-derived':''}${state.revision[task.id]?' needs-revision':''}`;
                     await syncCompletion(task.id,state.completions[task.id]);
                     pushUndo(`${prev?'Uncompleted':'Completed'}: ${task.text.substring(0,30)}`,async()=>{state.completions[task.id]=prev;await syncCompletion(task.id,prev);executeRenderCycles();});
                     updateTodayCount();calculateVelocity();renderStreak();renderNextUp();renderMissedBanner();
@@ -1400,7 +1429,7 @@
     if(!confirmed)return;
     syncQueue=[];persistSyncQueue();setSyncStatus('ok');updateOnlineStatus();updateSettingsPanel();
   });
-  document.getElementById('resetBtn').addEventListener('click',async()=>{if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be reset.');return;}const confirmed=await showConfirm('RESET WEEK','This will wipe all completions, custom tasks, notes, archived tasks, and cloud data for this week. Cannot be undone.');if(!confirmed)return;state={completions:{},counters:{},skipped:{},deleted:{},order:{}};customTasks=[];taskNotes={};weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];archivedTasks=[];alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));closeWeeklyNotesDrawer();updateWeeklyNotesDrawer();await clearCurrentWeekCloud();executeRenderCycles();});
+  document.getElementById('resetBtn').addEventListener('click',async()=>{if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be reset.');return;}const confirmed=await showConfirm('RESET WEEK','This will wipe all completions, custom tasks, notes, archived tasks, and cloud data for this week. Cannot be undone.');if(!confirmed)return;state={completions:{},counters:{},skipped:{},deleted:{},order:{},revision:{}};customTasks=[];taskNotes={};revisionTimes={};weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];archivedTasks=[];alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));closeWeeklyNotesDrawer();updateWeeklyNotesDrawer();await clearCurrentWeekCloud();executeRenderCycles();});
 
   const modal=document.getElementById('taskModal');
   document.getElementById('addTaskBtn').addEventListener('click',()=>{if(isReadOnly)return;openTaskModal('add');});
