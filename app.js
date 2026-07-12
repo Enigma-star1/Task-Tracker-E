@@ -1,4 +1,4 @@
-﻿document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
 
   const SUPABASE_URL = "https://gbewpiujdqnqswdbrigt.supabase.co";
   const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiZXdwaXVqZHFucXN3ZGJyaWd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2ODExMzAsImV4cCI6MjA5NjI1NzEzMH0.VdrJCmvGZzc-_GJF6m9drxdgsdeb5a1eb9AOIRxTWYQ";
@@ -738,6 +738,7 @@
   }
 
   function taskHasMeetingAlert(task){
+    if(task.brand==='meet')return true;
     const text=`${task.text||''} ${task.time||''}`.toLowerCase();
     return /\b(meeting|meet|call|interview|appointment|session|consultation|briefing)\b/.test(text);
   }
@@ -746,6 +747,7 @@
     if(taskHasMeetingAlert(task))return'meeting';
     const priority=task.alertPriority||'auto';
     if(priority==='none'||priority==='low'||priority==='high')return priority;
+    if(task.brand==='school')return'high';
     if(!parseTimeString(task.time))return'none';
     return'low';
   }
@@ -1429,6 +1431,38 @@
     if(!confirmed)return;
     syncQueue=[];persistSyncQueue();setSyncStatus('ok');updateOnlineStatus();updateSettingsPanel();
   });
+  document.getElementById('cloneLastWeekBtn').addEventListener('click',async()=>{
+    if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be modified.');return;}
+    const confirmed=await showConfirm('CLONE LAST WEEK','This will replace this week\'s schedule with last week\'s custom tasks and deleted template settings. Completions will start fresh. Continue?');
+    if(!confirmed)return;
+    const currentSat=new Date(currentWeekKey+'T12:00:00');
+    currentSat.setDate(currentSat.getDate()-7);
+    const lastWeekKey=toDateStr(currentSat);
+    setSyncStatus('pending');
+    try{
+      const res=await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${lastWeekKey}&select=*`,{headers:SB_HEADERS});
+      if(!res.ok)throw new Error('Fetch failed');
+      const data=await res.json();
+      const lastWeekCustom=data.find(r=>r.id===`blob_custom_tasks_${lastWeekKey}`);
+      const lastWeekDeleted=data.filter(r=>r.id.startsWith(`${lastWeekKey}__deleted_`));
+      await clearCurrentWeekCloud();
+      state={completions:{},counters:{},skipped:{},deleted:{},order:{},revision:{}};
+      customTasks=[];taskNotes={};revisionTimes={};weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];archivedTasks=[];alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;
+      sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));
+      closeWeeklyNotesDrawer();updateWeeklyNotesDrawer();
+      if(lastWeekCustom&&lastWeekCustom.text_val){try{customTasks=JSON.parse(lastWeekCustom.text_val);}catch(e){}}
+      lastWeekDeleted.forEach(row=>{const baseId=row.id.replace(`${lastWeekKey}__deleted_`,'');state.deleted[baseId]=true;});
+      await syncCustomTasks();
+      for(const d of Object.keys(state.deleted)){await syncDeleted(d);}
+      setSyncStatus('ok');
+      executeRenderCycles();
+    }catch(e){
+      console.error(e);
+      setSyncStatus('fail');
+      await showConfirm('ERROR','Failed to clone schedule. Check connection.');
+    }
+  });
+
   document.getElementById('resetBtn').addEventListener('click',async()=>{if(isReadOnly){await showConfirm('READ-ONLY','Past weeks cannot be reset.');return;}const confirmed=await showConfirm('RESET WEEK','This will wipe all completions, custom tasks, notes, archived tasks, and cloud data for this week. Cannot be undone.');if(!confirmed)return;state={completions:{},counters:{},skipped:{},deleted:{},order:{},revision:{}};customTasks=[];taskNotes={};revisionTimes={};weeklyNotes='';brainDumpNotes=[];brainDumpSuggestions=[];archivedTasks=[];alertedTasks={};openDrawerTaskId=null;missedBannerDismissed=false;sessionStorage.setItem(ALERTED_KEY,JSON.stringify({}));closeWeeklyNotesDrawer();updateWeeklyNotesDrawer();await clearCurrentWeekCloud();executeRenderCycles();});
 
   const modal=document.getElementById('taskModal');

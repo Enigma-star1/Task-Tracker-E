@@ -271,6 +271,7 @@
           <option value="30">Alert: 30m</option>
         </select>
         <button class="action-btn" id="summaryViewToggleBtn">Summary</button>
+        <button class="action-btn" id="cloneLastWeekBtn">Clone Last Week</button>
         <button class="action-btn" id="addTaskBtn">+ Task</button>
       </div>
       <div class="sync-indicator">
@@ -1275,6 +1276,46 @@ document.addEventListener('DOMContentLoaded', () => {
     summaryLayoutVisible = !summaryLayoutVisible;
     e.target.classList.toggle('active-view-btn', summaryLayoutVisible);
     executeRenderCycles();
+  });
+
+  document.getElementById('cloneLastWeekBtn').addEventListener('click', async () => {
+    if (isReadOnly) { await showConfirm('READ-ONLY', 'Past weeks cannot be modified.'); return; }
+    const confirmed = await showConfirm('CLONE LAST WEEK', 'This will replace this week\'s schedule with last week\'s custom tasks and deleted template settings. Completions will start fresh. Continue?');
+    if (!confirmed) return;
+    const currentSat = new Date(currentWeekKey + 'T12:00:00');
+    currentSat.setDate(currentSat.getDate() - 7);
+    const lastWeekKey = toDateStr(currentSat);
+    const lastWeekWk = weekKey(lastWeekKey);
+    const currentWk = weekKey(currentWeekKey);
+    setSyncStatus('pending');
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${lastWeekWk}&select=*`, { headers: SB_HEADERS });
+      if (!res.ok) throw new Error('Fetch failed');
+      const data = await res.json();
+      const lastWeekCustom = data.find(r => r.id === globalKey(`custom_tasks_${lastWeekKey}`));
+      const lastWeekDeleted = data.filter(r => r.id.startsWith(globalKey('deleted_')));
+      await fetch(`${SUPABASE_URL}/rest/v1/tracker_state?week_key=eq.${currentWk}`, { method: 'DELETE', headers: SB_HEADERS });
+      state = { completions: {}, skipped: {}, deleted: {}, order: {} };
+      customTasks = [];
+      taskNotes = {};
+      if (lastWeekCustom && lastWeekCustom.text_val) {
+        try { customTasks = JSON.parse(lastWeekCustom.text_val); } catch(e) {}
+      }
+      lastWeekDeleted.forEach(row => {
+        const baseId = row.id.replace(globalKey('deleted_'), '');
+        state.deleted[baseId] = true;
+      });
+      await syncCustomTasks();
+      for (const d of Object.keys(state.deleted)) {
+        await syncDeleted(d);
+      }
+      setSyncStatus('ok');
+      executeRenderCycles();
+    } catch(e) {
+      console.error(e);
+      setSyncStatus('fail');
+      await showConfirm('ERROR', 'Failed to clone schedule. Check connection.');
+    }
   });
 
   const modal = document.getElementById('taskModal');

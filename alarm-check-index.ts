@@ -17,6 +17,8 @@ const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const NTFY_TOPIC       = Deno.env.get('NTFY_TOPIC') || 'enigma-tracker-default'
 const NTFY_BASE        = 'https://ntfy.sh'
+const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') || ''
+const TELEGRAM_CHAT_ID   = Deno.env.get('TELEGRAM_CHAT_ID') || ''
 
 const MEETING_OFFSETS = [30, 20, 10, 0]
 const HIGH_OFFSETS = [90, 60, 30, 0]
@@ -109,6 +111,33 @@ function formatLead(offsetMins: number): string {
   return `in ${offsetMins}m`
 }
 
+function hashId(input: string): string {
+  let h = 2166136261
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return (h >>> 0).toString(36)
+}
+
+function addMinutes(dateStr: string, timeStr: string, minutes: number): { dateStr: string; timeStr: string } {
+  const [h, m] = timeStr.split(':').map(Number)
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  let total = h * 60 + m + minutes
+  while (total >= 1440) {
+    total -= 1440
+    d.setUTCDate(d.getUTCDate() + 1)
+  }
+  while (total < 0) {
+    total += 1440
+    d.setUTCDate(d.getUTCDate() - 1)
+  }
+  return {
+    dateStr: `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`,
+    timeStr: `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`
+  }
+}
+
 async function fireNotification(title: string, message: string, priority: string, tags: string): Promise<{ ok: boolean; status: number; body: string }> {
   const res = await fetch(`${NTFY_BASE}/${NTFY_TOPIC}`, {
     method: 'POST',
@@ -122,6 +151,98 @@ async function fireNotification(title: string, message: string, priority: string
   })
   const body = await res.text().catch(() => '')
   return { ok: res.ok, status: res.status, body }
+}
+
+async function fireTelegramNotification(title: string, message: string, actionId?: string): Promise<{ ok: boolean; status: number; body: string }> {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    return { ok: false, status: 0, body: 'telegram secrets missing' }
+  }
+
+  const text = `${title}\n${message}`
+  const payload: Record<string, unknown> = {
+    chat_id: TELEGRAM_CHAT_ID,
+    text,
+    disable_web_page_preview: true
+  }
+  if (actionId) {
+    payload.reply_markup = {
+      inline_keyboard: [[
+        { text: 'Snooze 10m', callback_data: `s10:${actionId}` }
+      ]]
+    }
+  }
+  const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: new Headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload)
+  })
+  const body = await res.text().catch(() => '')
+  return { ok: res.ok, status: res.status, body }
+}
+
+async function saveTelegramAction(supabase: any, actionId: string, payload: Record<string, unknown>, weekKey: string) {
+  await supabase.from('tracker_state').upsert({
+    id: `tg_action_${actionId}`,
+    is_done: false,
+    counter_val: null,
+    text_val: JSON.stringify(payload),
+    week_key: weekKey,
+    updated_at: new Date().toISOString()
+  })
+}
+
+async function fireDueSnoozes(supabase: any, dateStr: string, currentTime: string, weekKey: string): Promise<number> {
+  const { data } = await supabase
+    .from('tracker_state')
+    .select('id, text_val')
+    .eq('week_key', weekKey)
+    .like('id', 'snooze_%')
+    .eq('is_done', false)
+
+  if (!Array.isArray(data)) return 0
+
+  let fired = 0
+  for (const row of data) {
+    if (!row.text_val) continue
+    let snooze: any
+    try { snooze = JSON.parse(row.text_val) } catch { continue }
+    if (snooze.dueDate !== dateStr || snooze.dueTime !== currentTime) continue
+
+    const title = `SNOOZED: ${snooze.title || 'ENIGMA Alert'}`
+    const message = snooze.message || 'Snoozed reminder'
+    const actionId = hashId(`${row.id}_${dateStr}_${currentTime}`)
+    await saveTelegramAction(supabase, actionId, {
+      kind: 'snoozed-alert',
+      taskId: snooze.taskId,
+      title,
+      message,
+      weekKey,
+      createdAt: new Date().toISOString()
+    }, weekKey)
+
+    const telegramResult = await fireTelegramNotification(title, message, actionId)
+    console.log(`[alarm-check] snooze telegram response: ${telegramResult.status} ${telegramResult.body}`)
+
+    let delivered = telegramResult.ok
+    if (!delivered) {
+      const ntfyResult = await fireNotification(title, message, 'high', 'alarm_clock')
+      console.log(`[alarm-check] snooze ntfy fallback response: ${ntfyResult.status} ${ntfyResult.body}`)
+      delivered = ntfyResult.ok
+    }
+
+    if (!delivered) continue
+
+    await supabase.from('tracker_state').upsert({
+      id: row.id,
+      is_done: true,
+      counter_val: null,
+      text_val: row.text_val,
+      week_key: weekKey,
+      updated_at: new Date().toISOString()
+    })
+    fired++
+  }
+  return fired
 }
 
 interface Task {
@@ -156,7 +277,7 @@ function taskBrand(task: Task): string {
 }
 
 function isMeetingTask(task: Task): boolean {
-  if (task.is_meeting === true) return true
+  if (task.is_meeting === true || taskBrand(task) === 'meet') return true
   const text = `${taskText(task)} ${taskTime(task)}`.toLowerCase()
   return /\b(meeting|meet|call|interview|appointment|session|consultation|briefing)\b/.test(text)
 }
@@ -249,6 +370,8 @@ Deno.serve(async (_req: Request): Promise<Response> => {
   console.log(`[alarm-check] ${dateStr} ${currentTime} WAT | day=${dayKey} | week=${weekKey}`)
 
   try {
+    const snoozesFired = await fireDueSnoozes(supabase, dateStr, currentTime, weekKey)
+
     const { data: baseTasks, error: tasksErr } = await supabase
       .from('tasks')
       .select('*')
@@ -339,13 +462,30 @@ Deno.serve(async (_req: Request): Promise<Response> => {
         const message = `[${timeStr}] ${formatLead(offsetMins)}: ${text}`
         const tags = getAlertTags(priority, brand)
         const ntfyPriority = getNtfyPriority(priority)
+        const actionId = hashId(alertId)
+
+        await saveTelegramAction(supabase, actionId, {
+          kind: 'scheduled-alert',
+          taskId,
+          title,
+          message,
+          weekKey,
+          createdAt: new Date().toISOString()
+        }, weekKey)
 
         console.log(`[alarm-check] FIRING (${priority} T-${offsetMins}): ${title} -- ${message}`)
-        const ntfyResult = await fireNotification(title, message, ntfyPriority, tags)
-        console.log(`[alarm-check] ntfy response: ${ntfyResult.status} ${ntfyResult.body}`)
+        const telegramResult = await fireTelegramNotification(title, message, actionId)
+        console.log(`[alarm-check] telegram response: ${telegramResult.status} ${telegramResult.body}`)
 
-        if (!ntfyResult.ok) {
-          console.log(`[alarm-check] ntfy rejected alert, not marking fired: ${alertId}`)
+        let delivered = telegramResult.ok
+        if (!delivered) {
+          const ntfyResult = await fireNotification(title, message, ntfyPriority, tags)
+          console.log(`[alarm-check] ntfy fallback response: ${ntfyResult.status} ${ntfyResult.body}`)
+          delivered = ntfyResult.ok
+        }
+
+        if (!delivered) {
+          console.log(`[alarm-check] all channels rejected alert, not marking fired: ${alertId}`)
           continue
         }
 
@@ -360,7 +500,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
     }
 
     return new Response(
-      JSON.stringify({ status: 'ok', time: currentTime, day: dayKey, alerts_fired: alertsFired }),
+      JSON.stringify({ status: 'ok', time: currentTime, day: dayKey, alerts_fired: alertsFired, snoozes_fired: snoozesFired }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
 
